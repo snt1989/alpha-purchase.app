@@ -23,8 +23,18 @@ module.exports = async (req, res) => {
     if (atts.length) {
       const pwTexts = (Array.isArray(b.pwTexts) ? b.pwTexts : []).slice(0, 6).map((t) => ({ subject: String((t && t.subject) || "").slice(0, 300), body: String((t && t.body) || "").slice(0, 8000) }));
       const results = await processAttachments(atts, pwTexts, { source: "gmail", mail: { from: mail.from, subject: mail.subject, date: mail.date, messageId: mail.messageId, body: mail.body.slice(0, 5000) } });
+      // 作業依頼書ではない添付(見積依頼書のPDFなど)は、本文+PDFの文字を合わせて見積依頼・注文として登録する
+      const others = results.filter((r) => r.state === "not_work_order" && r.text);
+      const hasWork = results.some((r) => r.state === "registered" || r.state === "duplicate");
+      const pwRetry = results.some((r) => r.state === "error" && r.code === "no_password");
+      if (!hasWork && !pwRetry && others.length) {
+        const text = (mail.body + "\n\n" + others.map((r) => "【添付 " + r.file + "】\n" + r.text).join("\n\n")).slice(0, 30000);
+        const r = await ingest(Object.assign({}, mail, { body: text }), { source: "gmail" });
+        return res.json({ ok: true, state: r.state, nos: (r.jobs || []).map((j) => j.no), results: results.map((x) => ({ file: x.file, state: x.state })) });
+      }
+      results.forEach((r) => { delete r.text; });
       // 記録(取込ログに出す)
-      const key = "g" + (mail.messageId || Date.now()).toString().replace(/[^A-Za-z0-9]/g, "").slice(0, 80);
+      const key ="g" + (mail.messageId || Date.now()).toString().replace(/[^A-Za-z0-9]/g, "").slice(0, 80);
       const ok = results.filter((r) => r.state === "registered");
       await redis(["HSET", K.mails, key, JSON.stringify({ key, at: new Date().toISOString(), state: ok.length ? "registered" : results.some((r) => r.state === "duplicate") ? "duplicate" : "error",
         from: mail.from, subject: mail.subject, jobs: ok.map((r) => ({ id: "", no: r.no })), files: results })]);

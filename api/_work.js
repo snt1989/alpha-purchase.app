@@ -128,7 +128,7 @@ async function processAttachments(attachments, pwTexts, ctx) {
       if (!pdfs.length) { results.push({ file: a.name, state: "no_pdf" }); continue; }
       for (const p of pdfs) {
         const text = await pdfText(p.data);
-        if (!AP.isWorkOrder(text)) { results.push({ file: p.name, state: "not_work_order" }); continue; }
+        if (!AP.isWorkOrder(text)) { results.push({ file: p.name, state: "not_work_order", text: text.slice(0, 20000) }); continue; }
         const w = AP.parseWorkOrder(text);
         const r = await registerWork(w, p, Object.assign({}, ctx, { pwFrom }));
         results.push({ file: p.name, state: r.state, no: r.job.no, reqNo: w.reqNo });
