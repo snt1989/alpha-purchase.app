@@ -21,11 +21,12 @@ const inbound = require("../api/inbound.js"), auth = require("../api/auth.js"), 
   assert.strictEqual(r.json.state, "registered");
   const list = async () => (await call(db, { headers: C, body: { op: "list", col: "orders" } })).json.docs.map((d) => d.data);
   let o = (await list())[0]; assert.ok(o.pdfLink && o.needsReview); const id = o.id, no = o.no;
+  const mailBefore = JSON.stringify(o.mail || null), emailBefore = o.email, srcBefore = o.source; assert.ok(o.mail || o.email, "mail info present");
   // 2) PDF(ZIP)を読み込む → 新規ではなく、同じ案件に反映される
   r = await call(workpdf, { headers: C, body: { create: true, name: "依頼.zip", b64: fs.readFileSync(zipPath).toString("base64"), password: "himitsu123" } });
   assert.strictEqual(r.json.results[0].state, "merged", JSON.stringify(r.json));
   const all = await list(); assert.strictEqual(all.length, 1); o = all[0];
-  assert.strictEqual(o.id, id); assert.strictEqual(o.no, no); assert.strictEqual(o.reqNo, "2610-01991-2829"); assert.ok(!o.pdfLink);
+  assert.strictEqual(o.id, id); assert.strictEqual(o.no, no); assert.strictEqual(o.reqNo, "2610-01991-2829"); assert.ok(!o.pdfLink); assert.strictEqual(JSON.stringify(o.mail || null), mailBefore); assert.strictEqual(o.email, emailBefore); assert.strictEqual(o.source, srcBefore);
   assert.ok(o.files && o.files[0] && /api\/file\?id=/.test(o.files[0].url));
   // 3) 未ログインは使えない
   assert.strictEqual((await call(workpdf, { body: { name: "a.pdf", b64: "x".repeat(200) } })).status, 401);

@@ -153,6 +153,12 @@ async function registerWork(w, file, ctx) {
     // 既存の案件に上書き(番号・状態・履歴・写真などは引き継ぐ)
     const keep = {}; ["id", "no", "status", "history", "photos", "createdAt", "receivedAt", "staff", "note"].forEach((k) => { if (k === "receivedAt" && target.provisional) return; if (target[k] !== undefined) keep[k] = target[k]; });
     const merged = Object.assign({}, job, keep, { pdfLink: undefined, provisional: undefined });
+    // 元のメールから読み取った情報は消さない。PDFに無い項目は元の値を残し、メール情報(差出人・連絡先など)は常に元を優先する
+    const empty = (v) => v == null || v === "" || (Array.isArray(v) && !v.length);
+    Object.keys(target).forEach((k) => { if (["files", "history", "pdfLink", "provisional", "issues", "needsReview", "parsedBy"].indexOf(k) >= 0) return; if (empty(merged[k]) && !empty(target[k])) merged[k] = target[k]; });
+    ["mail", "email", "source"].forEach((k) => { if (!empty(target[k])) merged[k] = target[k]; });
+    if (!empty(target.contact) && target.email) merged.contact = target.contact;
+    if (!empty(target.subject)) { merged.mailSubject = target.subject; }
     merged.files = (job.files || []).concat((target.files || []).filter((f) => f.kind === "report"));
     merged.history = (target.history || []).concat({ at: now, text: target.provisional ? "作業依頼書を読み込んで内容を確定" : "作業依頼書PDFを読み込んで内容を更新" });
     cmds.push(["HSET", K.orders, target.id, JSON.stringify(merged)], ["INCR", K.ver("orders")]);
