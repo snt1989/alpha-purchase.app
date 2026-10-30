@@ -56,7 +56,19 @@ async function fetchLinkedPdfs(body, debug) {
       else if (r.data && /html|text/i.test(r.ct)) {
         const html = new TextDecoder("utf-8").decode(r.data);
         d.head = html.replace(/\s+/g, " ").slice(0, 300);
-        if (debug) d.html = html.slice(0, 60000);
+        if (debug) {
+          d.chunks = [];
+          const cs = Array.from(new Set(html.match(/\/_next\/static\/chunks\/[A-Za-z0-9_\-]+\.js/g) || [])).slice(0, 30);
+          for (const c of cs) {
+            try {
+              const x = await get(new URL(c, r.url).href); const js = new TextDecoder().decode(x.data || new Uint8Array());
+              const hit = Array.from(new Set(js.match(/["'`]\/(?:api|next-web\/api|v\d)[^"'`\s]{0,120}["'`]/g) || [])).slice(0, 15);
+              const ctx = []; let m; const re = /.{0,160}(?:email|mailAddress|download)[A-Za-z]*.{0,160}/gi;
+              while ((m = re.exec(js)) && ctx.length < 6) ctx.push(m[0].replace(/\s+/g, " "));
+              if (hit.length || ctx.length) d.chunks.push({ c, hit, ctx });
+            } catch (e) { d.chunks.push({ c, error: String(e.message || e).slice(0, 80) }) }
+          }
+        }
         for (const c of candidates(html, r.url)) { const x = await tryUrl(c, null, "link"); if (isPdf(x.data)) { got = x; break } }
         if (!got) for (const f of forms(html, r.url)) {
           const x = f.method === "post" ? await tryUrl(f.url, { method: "POST", body: f.params, headers: { "Content-Type": "application/x-www-form-urlencoded" } }, "form") : await tryUrl(f.url + (f.params.toString() ? (f.url.indexOf("?") < 0 ? "?" : "&") + f.params : ""), null, "form");
