@@ -37,7 +37,7 @@ function forms(html, base) {
   return out;
 }
 
-async function fetchLinkedPdfs(body) {
+async function fetchLinkedPdfs(body, debug) {
   const urls = []; const seen = {};
   (String(body || "").match(/https:\/\/mailer\.kintoneapp\.com\/[^\s"'<>)）」]+/g) || []).forEach((u) => { if (!seen[u]) { seen[u] = 1; urls.push(u) } });
   const names = []; String(body || "").replace(/「([^」\n]+\.pdf)」/gi, (_, n) => { names.push(n) });
@@ -56,6 +56,7 @@ async function fetchLinkedPdfs(body) {
       else if (r.data && /html|text/i.test(r.ct)) {
         const html = new TextDecoder("utf-8").decode(r.data);
         d.head = html.replace(/\s+/g, " ").slice(0, 300);
+        if (debug) d.html = html.slice(0, 60000);
         for (const c of candidates(html, r.url)) { const x = await tryUrl(c, null, "link"); if (isPdf(x.data)) { got = x; break } }
         if (!got) for (const f of forms(html, r.url)) {
           const x = f.method === "post" ? await tryUrl(f.url, { method: "POST", body: f.params, headers: { "Content-Type": "application/x-www-form-urlencoded" } }, "form") : await tryUrl(f.url + (f.params.toString() ? (f.url.indexOf("?") < 0 ? "?" : "&") + f.params : ""), null, "form");
