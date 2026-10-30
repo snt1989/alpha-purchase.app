@@ -34,16 +34,6 @@ module.exports = async (req, res) => {
   const allow = String(process.env.ALLOWED_SENDERS || "alphapurchase.co.jp,gravity-inc001.com").split(",").map((x) => x.trim().toLowerCase()).filter(Boolean);
   const fromAddr = String(b.from || "").toLowerCase();
   if (allow.indexOf("*") < 0 && !allow.some((d) => fromAddr.indexOf(d) >= 0)) return res.json({ ok: true, state: "ignored", reason: "sender_not_allowed" });
-  // (一時)リンク先の調査用。mailer.kintoneapp.com だけに通信する
-  if (b.probe && typeof b.probe.url === "string") {
-    try {
-      const u = new URL(b.probe.url);
-      if (u.protocol !== "https:" || !/(^|\.)kintoneapp\.com$/.test(u.hostname)) return res.status(400).json({ ok: false, error: "host" });
-      const r = await fetch(u.href, { method: b.probe.method || "GET", redirect: "manual", headers: Object.assign({ "User-Agent": "Mozilla/5.0 (compatible; AlphaOrderNavi/1.0)" }, b.probe.headers || {}), body: b.probe.body });
-      const buf = Buffer.from(await r.arrayBuffer());
-      return res.json({ ok: true, status: r.status, ct: r.headers.get("content-type"), loc: r.headers.get("location"), cookies: typeof r.headers.getSetCookie === "function" ? r.headers.getSetCookie() : [], len: buf.length, pdf: buf.slice(0, 4).toString() === "%PDF", text: buf.slice(0, Number(b.probe.max) || 6000).toString("utf8") });
-    } catch (e) { return res.status(500).json({ ok: false, error: String(e.message || e).slice(0, 200) }); }
-  }
   const mail = { from: String(b.from || ""), subject: String(b.subject || ""), date: String(b.date || ""), messageId: String(b.messageId || ""), body: String(b.body || "") };
   const atts = (Array.isArray(b.attachments) ? b.attachments : []).slice(0, 10)
     .filter((a) => a && a.name && typeof a.b64 === "string" && /\.(zip|pdf)$/i.test(a.name))
