@@ -790,7 +790,9 @@ function dupCard(){
   G.map(function(a){return '<div class="gml" style="margin-bottom:10px">'+a.map(function(o,i){return '<label><input type="checkbox" class="dpc" data-id="'+e(o.id)+'"'+(i?" checked":"")+'><span style="min-width:0"><div class="s">'+(i?"":"【残す】")+e(o.no)+' ／ '+e(title(o))+'</div><div class="sub">'+e(o.subject||"")+' ／ '+e(ST[o.status])+' ／ 書類'+(o.files||[]).length+'枚 ／ '+e(o.reqNo||"番号なし")+'</div></span></label>'}).join("")+'</div>'}).join("")+
   '<button class="btn sm" data-a="dupdel">チェックした案件を削除</button></div>';
 }
+async function loadOrph(){if(S.mode!=="server"){S.orph=[];return}try{var r=await post("/api/db",{op:"orphans"});S.orph=r.docs||[]}catch(x){S.orph=[]}if(S.tab==="docs")render()}
 function pgDocs(){
+ if(!S.orphLoaded){S.orphLoaded=true;loadOrph()}
  var L=S.orders.filter(function(o){return o.status!==8}).map(function(o){var d=docState(o);return {o:o,d:d,n:(d.order?1:0)+(d.report?1:0)}}).filter(function(x){return x.n>0});
  var c={all:L.length,both:L.filter(function(x){return x.n===2}).length,one:L.filter(function(x){return x.n===1}).length};
  var f=S.docf||"all",rows=L.filter(function(x){return f==="all"||(f==="both"&&x.n===2)||(f==="one"&&x.n===1)});
@@ -805,7 +807,7 @@ function pgDocs(){
  h+='<div class="card2" style="padding:0"><div class="scroll"><table class="items" style="min-width:760px"><thead><tr><th>案件No</th><th>店舗・件名</th><th>依頼番号 / 案件番号</th><th>作業依頼書</th><th>作業完了報告書</th><th>状態</th></tr></thead><tbody>'+
   (rows.length?rows.map(function(x){var o=x.o;return '<tr data-a="open" data-id="'+e(o.id)+'" style="cursor:pointer"><td class="nw">'+e(o.no||"")+'</td><td><b>'+e(title(o))+'</b>'+(siteParts(o).jur?' <span class="sub">管轄: '+e(siteParts(o).jur)+'</span>':"")+'<div class="sub">'+e(o.subject||"")+'</div></td><td class="sub">'+e(o.reqNo||"—")+(o.caseNo?' / '+e(o.caseNo):"")+'</td><td>'+docTag(x.d.order,o.id,'order')+'</td><td>'+docTag(x.d.report,o.id,'report')+'</td><td class="nw">'+e((ST[o.status]||"")+(o.provisional?"(仮)":""))+'</td></tr>'}).join(""):'<tr><td colspan="6"><div class="empty">該当する案件はありません</div></td></tr>')+
   '</tbody></table></div></div>';
- var LD=S.settings.looseDocs||[];
+ var LD=(S.settings.looseDocs||[]).concat((S.orph||[]).map(function(d){return {id:"orph:"+d.id,orph:1,name:d.name,url:d.url,kind:d.kind,label:d.kind==="report"?"作業完了報告書":"作業依頼書",fromNo:"",fromSite:"(どの案件にも付いていない保存済みPDF)"}}));
  if(LD.length){
   var opts='<option value="">案件を選ぶ</option>'+S.orders.filter(function(o){return o.status!==8}).map(function(o){return '<option value="'+e(o.id)+'">'+e(o.no+" "+title(o))+'</option>'}).join("");
   h+='<div class="card2" style="margin-top:14px"><h3>未紐づけの書類('+LD.length+')</h3><div class="sub" style="margin-bottom:8px">案件から外した書類です。案件を選んで、もう一度紐づけできます。</div>'+
@@ -1311,15 +1313,17 @@ document.addEventListener("click",async function(ev){
   case "advance":{var sel=$("#f-status"),v=Number(sel.value);if(v<7){sel.value=v+1;toast("状態を「"+ST[v+1]+"」にしました。保存で確定します")}break}
   case "ldlink":{
    var li=t.dataset.id,sel=document.querySelector('select.ldsel[data-id="'+li+'"]'),ld=(S.settings.looseDocs||[]).filter(function(x){return x.id===li})[0];
+   if(!ld&&li.indexOf("orph:")===0){var od=(S.orph||[]).filter(function(x){return "orph:"+x.id===li})[0];if(od)ld={id:li,orph:1,name:od.name,url:od.url,kind:od.kind,label:od.kind==="report"?"作業完了報告書":"作業依頼書"}}
    if(!ld||!sel||!sel.value){toast("紐づける案件を選んでください");break}
    var lo=S.orders.filter(function(x){return x.id===sel.value})[0];if(!lo)break;
    lo.files=(lo.files||[]).filter(function(f){return docKind(f)!==ld.kind}).concat([{name:ld.name,url:ld.url,label:ld.label,kind:ld.kind}]);
    lo.history=(lo.history||[]).concat({at:new Date().toISOString(),text:ld.label+"を紐づけ("+ld.name+")"});
-   S.settings.looseDocs=S.settings.looseDocs.filter(function(x){return x.id!==li});
-   try{await Store.saveOrder(lo);await saveSettings();await reload(true);render();toast(lo.no+" に"+ld.label+"を紐づけました")}catch(x){toast("失敗しました: "+(x.message||x.code))}
+   S.settings.looseDocs=(S.settings.looseDocs||[]).filter(function(x){return x.id!==li});
+   try{await Store.saveOrder(lo);await saveSettings();await loadOrph();await reload(true);render();toast(lo.no+" に"+ld.label+"を紐づけました")}catch(x){toast("失敗しました: "+(x.message||x.code))}
    break}
   case "lddel":{
    if(t.dataset.armed!=="1"){t.dataset.armed="1";t.textContent="もう一度押すと削除";t.classList.add("pri");setTimeout(function(){if(t.isConnected){t.dataset.armed="";t.textContent="削除";t.classList.remove("pri")}},4000);break}
+   if(t.dataset.id.indexOf("orph:")===0){toast("この書類は、案件に紐づけるか、そのままにしてください");break}
    S.settings.looseDocs=(S.settings.looseDocs||[]).filter(function(x){return x.id!==t.dataset.id});await saveSettings();render();toast("未紐づけの書類を削除しました");break}
   case "undoc":{
    if(t.dataset.armed!=="1"){t.dataset.armed="1";t.textContent="もう一度押すと解除";t.classList.add("pri");setTimeout(function(){if(t.isConnected){t.dataset.armed="";t.textContent="紐づけ解除";t.classList.remove("pri")}},4000);break}

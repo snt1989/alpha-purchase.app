@@ -23,6 +23,18 @@ module.exports = async (req, res) => {
       for (let i = 0; i + 1 < flat.length; i += 2) { try { docs.push({ id: flat[i], data: JSON.parse(flat[i + 1]) }); } catch (e) {} }
       return res.json({ docs, ver: Number(r[1] || 0) });
     }
+    if (b.op === "orphans") {
+      // どの案件にも付いていない保存済みPDF(紐づけ解除したものなど)
+      const r = await pipeline([["HGETALL", "ap:fmeta"], ["HGETALL", key("orders")], ["HGET", key("settings"), "main"]]);
+      const used = {}, mark = (f) => { if (f && f.url) used[f.url] = 1; };
+      const o = r[1] || []; for (let i = 0; i + 1 < o.length; i += 2) { try { (JSON.parse(o[i + 1]).files || []).forEach(mark); } catch (e) {} }
+      try { (JSON.parse(r[2] || "{}").looseDocs || []).forEach(mark); } catch (e) {}
+      const m = r[0] || [], list = [];
+      for (let i = 0; i + 1 < m.length; i += 2) {
+        try { const f = JSON.parse(m[i + 1]); if (f.mime !== "application/pdf") continue; const url = "/api/file?id=" + encodeURIComponent(f.id || m[i]); if (!used[url]) list.push({ id: f.id || m[i], name: f.name || "", url, kind: /-r$/.test(f.id || m[i]) ? "report" : "order", at: f.at || "" }); } catch (e) {}
+      }
+      return res.json({ ok: true, docs: list });
+    }
     if (b.op === "set" || b.op === "del") {
       if (COLS.indexOf(b.col) < 0 || !/^[A-Za-z0-9_\-@.]{1,120}$/.test(String(b.id || ""))) return bad();
       const cmds = b.op === "set"
