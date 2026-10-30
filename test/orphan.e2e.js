@@ -16,5 +16,14 @@ const fs = require("fs"), path = require("path");
   await row.locator("select.ldsel").selectOption(opt); await row.locator('[data-a="ldlink"]').click();
   await p.waitForTimeout(1500); 
   if (await p.locator("div.row2:has(b:text-is(\"orphan-test.pdf\"))").count()) throw new Error("orphan remains");
+  const RB64 = fs.readFileSync(path.join(__dirname, "fixtures/report.pdf")).toString("base64");
+  // 付いていない書類の削除
+  await p.evaluate(async (b64) => (await fetch("/api/workpdf", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ create: true, name: "orphan-del.pdf", b64 }) })).json(), RB64);
+  await p.evaluate(async () => { const l = await (await fetch("/api/db", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ op: "list", col: "orders" }) })).json();
+    for (const d of l.docs) { if ((d.data.files || []).some((f) => f.name === "orphan-del.pdf")) { d.data.files = []; await fetch("/api/db", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ op: "set", col: "orders", id: d.id, data: d.data }) }); } } });
+  await p.reload(); await p.waitForSelector(".pghead"); await p.click('[data-a="tab"][data-t="docs"]');
+  const r2 = p.locator('div.row2:has(b:text-is("orphan-del.pdf"))'); await r2.waitFor();
+  await r2.locator('[data-a="lddel"]').click(); await r2.locator('[data-a="lddel"]').click();
+  await r2.waitFor({ state: "detached", timeout: 8000 });
   console.log("orphan e2e OK"); await b.close();
 })().catch((e) => { console.error(e); process.exit(1); });

@@ -23,6 +23,18 @@ module.exports = async (req, res) => {
       for (let i = 0; i + 1 < flat.length; i += 2) { try { docs.push({ id: flat[i], data: JSON.parse(flat[i + 1]) }); } catch (e) {} }
       return res.json({ docs, ver: Number(r[1] || 0) });
     }
+    if (b.op === "delfile") {
+      // どの案件にも付いていない保存済みPDFだけを削除する(使用中のものは消さない)
+      const ids = (Array.isArray(b.ids) ? b.ids : [b.id]).map(String).filter((x) => /^[A-Za-z0-9_\-@.]{1,120}$/.test(x)).slice(0, 100);
+      const r = await pipeline([["HGETALL", key("orders")], ["HGET", key("settings"), "main"]]);
+      const used = {}, mark = (f) => { if (f && f.url) used[f.url] = 1; };
+      const o = r[0] || []; for (let i = 0; i + 1 < o.length; i += 2) { try { (JSON.parse(o[i + 1]).files || []).forEach(mark); } catch (e) {} }
+      try { (JSON.parse(r[1] || "{}").looseDocs || []).forEach(mark); } catch (e) {}
+      const del = ids.filter((id) => !used["/api/file?id=" + encodeURIComponent(id)]), cmds = [];
+      del.forEach((id) => cmds.push(["DEL", "ap:file:" + id], ["HDEL", "ap:fmeta", id]));
+      if (cmds.length) await pipeline(cmds);
+      return res.json({ ok: true, deleted: del.length });
+    }
     if (b.op === "orphans") {
       // どの案件にも付いていない保存済みPDF(紐づけ解除したものなど)
       const r = await pipeline([["HGETALL", "ap:fmeta"], ["HGETALL", key("orders")], ["HGET", key("settings"), "main"]]);
