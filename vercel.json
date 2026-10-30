@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "api/ingest.js": { "maxDuration": 60 },
+    "api/inbound.js": { "maxDuration": 60 },
+    "api/db.js": { "maxDuration": 30 }
+  }
+}
