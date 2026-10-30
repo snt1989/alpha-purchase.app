@@ -898,7 +898,7 @@ function openJob(o,opt){
   '<label class="wide">工期・納期の記載<input type="text" id="f-sched" value="'+e(o.schedule||"")+'"></label>'+
   '<label class="wide">社内メモ<textarea id="f-note" rows="2">'+e(o.note)+'</textarea></label>'+
   '<label class="chk"><input type="checkbox" id="f-urg"'+(o.urgent?" checked":"")+'> 至急</label><label class="chk"><input type="checkbox" id="f-rev"'+(o.needsReview?" checked":"")+'> 要確認(内容を確認したらチェックを外す)</label></div>';
-  if(!draft&&(o.kind==="work"||o.reqNo||(o.files||[]).length))h+=docsSection(o);
+  if(!draft)h+=docsSection(o);
  else if((o.files||[]).length)h+='<div class="row2"><b style="font-size:13px">添付</b>'+o.files.map(function(f,i){var href=f.asset?"/_blob/"+f.asset:f.url||"";return href?'<button class="btn sm" data-a="pvopen" data-k="f" data-i="'+i+'">'+e(f.name||"PDF")+' をプレビュー</button>':'<span class="pill" title="サイズが大きいため保存されていません">'+e(f.name||"")+'</span>'}).join("")+'</div>';
  if(!draft)h+=photoSection(o);
  h+='<h3 style="font-family:var(--f-head);font-size:15px;margin:0">見積明細</h3><div class="scroll"><table class="items" id="items"><thead><tr><th>品名・作業項目</th><th>規格・型番</th><th>数量</th><th>単位</th><th>単価(税抜)</th><th>金額</th><th></th></tr></thead><tbody>'+(o.items&&o.items.length?o.items:[{}]).map(itemRow).join("")+'</tbody></table></div>'+
