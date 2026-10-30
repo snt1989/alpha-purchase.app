@@ -1,0 +1,20 @@
+const { chromium } = require("playwright");
+const fs = require("fs"), path = require("path");
+(async () => {
+  const b = await chromium.launch(), p = await b.newPage({ viewport: { width: 1280, height: 900 } });
+  await p.goto("http://localhost:3123/"); await p.waitForSelector(".login"); await p.fill("#lpw", "test1234"); await p.click(".login button"); await p.waitForSelector(".pghead");
+  const up = async (n) => { const b64 = fs.readFileSync(path.join(__dirname, "fixtures", n)).toString("base64");
+    return p.evaluate(async ([n, b64]) => (await fetch("/api/workpdf", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: n, b64 }) })).json(), [n, b64]); };
+  await up("order.pdf"); await up("report.pdf");
+  await p.reload(); await p.waitForSelector(".pghead");
+  await p.click('[data-a="tab"][data-t="docs"]'); await p.waitForSelector("table.items");
+  const t = await p.innerText("table.items tbody");
+  if (!/紐づけ済[\s\S]*紐づけ済/.test(t)) throw new Error("both not shown: " + t);
+  await p.click('[data-a="docf"][data-f="miss"]');
+  const t2 = await p.innerText("table.items tbody");
+  if (/紐づけ済[\s\S]*紐づけ済/.test(t2)) throw new Error("filter failed");
+  await p.click('[data-a="docf"][data-f="both"]');
+  await p.screenshot({ path: process.argv[2] || "/tmp/docs2.png" });
+  await p.click('table.items tbody tr'); await p.waitForSelector("#docs");
+  console.log("docs screen OK"); await b.close();
+})().catch((e) => { console.error(e); process.exit(1); });
