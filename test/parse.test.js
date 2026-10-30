@@ -142,5 +142,11 @@ console.log("parse tests OK");
   console.log("password OK");
 }
 { const AP2 = require("../parse.js"); const w = AP2.parseWorkOrder("作業依頼書\n店舗名\t365575 ローソン 花巻不動\t岩手南支店\n作業依頼番号/顧客案件番号\t2610-02161-3067\t/\t03194235\n工事・作業名称\t【修繕】\tテスト\n");
-  require("assert").strictEqual(w.site, "365575 ローソン 花巻不動"); require("assert").strictEqual(w.jurisdiction, "岩手南支店");
+  require("assert").strictEqual(w.site, "ローソン花巻不動店"); require("assert").strictEqual(w.jurisdiction, "岩手南支店");
   require("assert").strictEqual(AP2.splitJurisdiction("ローソン 花巻不動 岩手南支店").site, "ローソン 花巻不動"); console.log("jurisdiction OK"); }
+{ const A = require("../parse.js"), as = require("assert");
+  as.strictEqual(A.normStore("365575 ローソン 花巻不動"), "ローソン花巻不動店");
+  as.strictEqual(A.normStore("132760 ローソン 横浜町道の駅前"), "ローソン横浜町道の駅前店");
+  as.strictEqual(A.normStore("ローソン 青森駅前店"), "ローソン青森駅前店");
+  as.strictEqual(A.normStore("123456 スーパーホテル 盛岡"), "スーパーホテル盛岡");
+  as.strictEqual(A.normStore("セブン-イレブン 盛岡店"), "セブン-イレブン 盛岡店"); console.log("normStore OK"); }

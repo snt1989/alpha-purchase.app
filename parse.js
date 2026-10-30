@@ -478,6 +478,15 @@
     var one = parts[0] || "", m = /^(.*\S)\s+(\S+(?:支店|営業所|営業部|支社|事務所))$/.exec(one);
     return m ? { site: m[1], jurisdiction: m[2] } : { site: one, jurisdiction: "" };
   }
+  // 店舗名の整え方: 「365575 ローソン 花巻不動」→「ローソン花巻不動店」、「スーパーホテル 盛岡」→「スーパーホテル盛岡」
+  function normStore(str) {
+    var t = String(str || "").replace(/　/g, " ").replace(/\s+/g, " ").trim();
+    t = t.replace(/^(?:[A-Za-z]{0,3}-?\d{3,}\s+)+/, "");
+    var m;
+    if ((m = /^(ローソン(?:ストア100|スリーエフ)?)\s*(.+)$/.exec(t))) { var rest = m[2].replace(/\s+/g, ""); return m[1] + rest + (/店$/.test(rest) ? "" : "店"); }
+    if ((m = /^(スーパーホテル)\s*(.+)$/.exec(t))) return m[1] + m[2].replace(/\s+/g, "");
+    return t;
+  }
   function parseWorkOrder(text) {
     var t = half(String(text || "")).replace(/\r\n?/g, "\n");
     var lines = t.split("\n").map(function (l) { return l.replace(/[  ]+$/, ""); });
@@ -514,7 +523,7 @@
     var noWork = after(/^\s*施工・作業しない日・時間/);
     var amountNote = after(/^\s*金額\s*\(税別\)/);
     var si = idxOf(/^\s*店舗名/), sj = splitJurisdiction(si >= 0 ? lines[si].replace(/^\s*店舗名\s*/, "") : "");
-    var site = sj.site;
+    var site = normStore(sj.site);
     var res = {
       kind: "work", client: client || CLIENT, requestedAt: reqAt, reqNo: reqNo, caseNo: caseNo, quoteNo: quoteNo,
       site: site, jurisdiction: sj.jurisdiction, address: after(/^\s*工事・作業・納入場所/), siteTel: after(/^\s*店舗電話番号/),
@@ -542,6 +551,7 @@
     r = r || {};
     var o = {}; ["client", "requestedAt", "reqNo", "caseNo", "quoteNo", "site", "address", "siteTel", "category", "subject", "schedule", "workDate", "noWork", "amountNote", "dept", "deptTel", "signer", "storeCode", "property", "jurisdiction"].forEach(function (k) { o[k] = S(r[k], 200); });
     var sj = splitJurisdiction(o.site); if (sj.jurisdiction) { o.site = sj.site; o.jurisdiction = o.jurisdiction || sj.jurisdiction; }
+    o.site = normStore(o.site);
     o.detail = String(r.detail == null ? "" : r.detail).slice(0, 4000).trim();
     o.kind = "work"; o.client = o.client || CLIENT;
     if (o.workDate && !/^\d{4}-\d{2}-\d{2}$/.test(o.workDate)) o.workDate = parseDate(o.workDate, (o.requestedAt || "").slice(0, 10));
@@ -616,7 +626,7 @@
   ];
 
   return {
-    STATUS: STATUS, KIND: KIND, extractPasswords: extractPasswords, CLIENT: CLIENT, kindOf: kindOf, isWorkOrder: isWorkOrder, isCompletionReport: isCompletionReport, splitJurisdiction: splitJurisdiction, parseCompletionReport: parseCompletionReport, parseWorkOrder: parseWorkOrder, buildWorkPrompt: buildWorkPrompt, normalizeWork: normalizeWork, makeWorkJob: makeWorkJob, workKey: workKey, OWN_DEFAULT: OWN_DEFAULT, SAMPLES: SAMPLES,
+    STATUS: STATUS, KIND: KIND, extractPasswords: extractPasswords, CLIENT: CLIENT, kindOf: kindOf, isWorkOrder: isWorkOrder, isCompletionReport: isCompletionReport, splitJurisdiction: splitJurisdiction, normStore: normStore, parseCompletionReport: parseCompletionReport, parseWorkOrder: parseWorkOrder, buildWorkPrompt: buildWorkPrompt, normalizeWork: normalizeWork, makeWorkJob: makeWorkJob, workKey: workKey, OWN_DEFAULT: OWN_DEFAULT, SAMPLES: SAMPLES,
     half: half, todayJst: todayJst, addDays: addDays, dateOnly: dateOnly, parseDate: parseDate,
     parseEml: parseEml, sniffHeaders: sniffHeaders, parseFrom: parseFrom, decodeHeader: decodeHeader,
     heuristic: heuristic, buildPrompt: buildPrompt, pickJson: pickJson, normalizeExtract: normalizeExtract,
