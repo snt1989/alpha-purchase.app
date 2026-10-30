@@ -130,6 +130,16 @@ details summary{cursor:pointer;font-weight:700;font-size:13px}
 .phc{border:1px solid var(--line);border-radius:10px;padding:6px;display:flex;flex-direction:column;gap:5px;background:var(--bg)}
 .phc img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:6px;cursor:zoom-in;background:#0001}
 .phc select,.phc input{font:inherit;font-size:12.5px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);width:100%;min-width:0}
+.pvw{position:fixed;inset:0;z-index:95;background:#000d;display:flex;flex-direction:column}
+.pvw .pb{display:flex;align-items:center;gap:8px;padding:10px 14px;color:#fff;flex-wrap:wrap}
+.pvw .pb b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:50vw}
+.pvw .pb .sp{flex:1}
+.pvw .pb .btn{background:#ffffff1f;color:#fff;border-color:#ffffff40}
+.pvw .pb a.btn{text-decoration:none}
+.pvw .pbody{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:0 14px 14px}
+.pvw iframe{width:min(1000px,100%);height:100%;border:0;background:#fff;border-radius:6px}
+.pvw img{max-width:100%;max-height:100%;object-fit:contain;border-radius:6px}
+.pvw .none{color:#fff;text-align:center;line-height:1.9}
 .rpt{position:fixed;inset:0;z-index:80;background:#0008;overflow:auto;padding:14px}
 .rpt .bar{max-width:820px;margin:0 auto 10px;display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 .rpt .pg{max-width:820px;margin:0 auto;background:#fff;color:#111;padding:28px 32px;border-radius:6px;font-size:13.5px;line-height:1.6}
@@ -1370,7 +1380,7 @@ function openJob(o,opt){
   '<label class="wide">工期・納期の記載<input type="text" id="f-sched" value="'+e(o.schedule||"")+'"></label>'+
   '<label class="wide">社内メモ<textarea id="f-note" rows="2">'+e(o.note)+'</textarea></label>'+
   '<label class="chk"><input type="checkbox" id="f-urg"'+(o.urgent?" checked":"")+'> 至急</label><label class="chk"><input type="checkbox" id="f-rev"'+(o.needsReview?" checked":"")+'> 要確認(内容を確認したらチェックを外す)</label></div>';
- if((o.files||[]).length)h+='<div class="row2"><b style="font-size:13px">添付</b>'+o.files.map(function(f){var href=f.asset?"/_blob/"+f.asset:f.url||"";return href?'<a class="btn sm" href="'+e(href)+'" target="_blank" rel="noopener">'+e(f.name||"PDF")+' を開く</a>':'<span class="pill">'+e(f.name||"")+'</span>'}).join("")+'</div>';
+ if((o.files||[]).length)h+='<div class="row2"><b style="font-size:13px">添付</b>'+o.files.map(function(f,i){var href=f.asset?"/_blob/"+f.asset:f.url||"";return href?'<button class="btn sm" data-a="pvopen" data-k="f" data-i="'+i+'">'+e(f.name||"PDF")+' をプレビュー</button>':'<span class="pill" title="サイズが大きいため保存されていません">'+e(f.name||"")+'</span>'}).join("")+'</div>';
  if(!draft)h+=photoSection(o);
  h+='<h3 style="font-family:var(--f-head);font-size:15px;margin:0">見積明細</h3><div class="scroll"><table class="items" id="items"><thead><tr><th>品名・作業項目</th><th>規格・型番</th><th>数量</th><th>単位</th><th>単価(税抜)</th><th>金額</th><th></th></tr></thead><tbody>'+(o.items&&o.items.length?o.items:[{}]).map(itemRow).join("")+'</tbody></table></div>'+
   '<div class="row2"><button class="btn sm" data-a="addrow">行を追加</button><span class="sp"></span></div><div class="sum" id="sum"></div>';
@@ -1544,7 +1554,38 @@ async function reportAi(btn){
  }catch(x){toast("AIで作れませんでした: "+(x.message||x.code||x))}
  finally{if(btn.isConnected){btn.disabled=false;btn.textContent=old}}
 }
-function closeDlg(){S.dlg=null;$("#layer").innerHTML="";var rp=$("#rpt");if(rp)rp.remove()}
+
+/* ---- 添付・写真のプレビュー(PDF・画像をアプリ内で表示) ---- */
+function fileSrc(f){return f.asset?"/_blob/"+f.asset:f.url||f.data||""}
+function previewList(){
+ var d=S.dlg;if(!d)return [];var out=[];
+ (d.job.files||[]).forEach(function(f,i){var src=fileSrc(f);if(src)out.push({k:"f",i:i,name:f.name||"添付",src:src,pdf:/\.pdf$/i.test(f.name||"")||/pdf/i.test(f.mime||"")||/^\/api\/file/.test(src)&&!/\.(jpe?g|png|gif|webp)$/i.test(f.name||"")})});
+ readPhotos().forEach(function(p,i){var src=photoSrc(p);if(src)out.push({k:"p",i:i,name:"写真"+(i+1)+(p.caption?"("+p.caption+")":""),src:src,pdf:false})});
+ return out;
+}
+var PV={list:[],at:0};
+function openPreview(k,i){
+ PV.list=previewList();PV.at=Math.max(0,PV.list.findIndex(function(x){return x.k===k&&x.i===i}));
+ if(!PV.list.length){toast("プレビューできるファイルがありません");return}
+ var w=$("#pvw");if(w)w.remove();
+ w=document.createElement("div");w.id="pvw";w.className="pvw";w.setAttribute("role","dialog");w.setAttribute("aria-modal","true");
+ document.body.appendChild(w);drawPreview();
+}
+function drawPreview(){
+ var w=$("#pvw");if(!w)return;var it=PV.list[PV.at],n=PV.list.length;
+ var body=it.pdf?'<iframe src="'+e(it.src)+'" title="'+e(it.name)+'"></iframe>':'<img src="'+e(it.src)+'" alt="'+e(it.name)+'">';
+ w.innerHTML='<div class="pb"><b title="'+e(it.name)+'">'+e(it.name)+'</b><span class="sub" style="color:#ddd">'+(PV.at+1)+' / '+n+'</span><span class="sp"></span>'+
+  (n>1?'<button class="btn sm" data-a="pvprev" aria-label="前へ">‹ 前へ</button><button class="btn sm" data-a="pvnext" aria-label="次へ">次へ ›</button>':"")+
+  '<a class="btn sm" href="'+e(it.src)+'" target="_blank" rel="noopener">新しいタブで開く</a><button class="btn sm" data-a="pvclose">閉じる</button></div>'+
+  '<div class="pbody">'+body+'</div>';
+}
+function stepPreview(d){if(!PV.list.length)return;PV.at=(PV.at+d+PV.list.length)%PV.list.length;drawPreview()}
+function closePreview(){var w=$("#pvw");if(w)w.remove()}
+document.addEventListener("keydown",function(ev){
+ if(!$("#pvw"))return;
+ if(ev.key==="Escape"){ev.stopPropagation();closePreview()}else if(ev.key==="ArrowLeft")stepPreview(-1);else if(ev.key==="ArrowRight")stepPreview(1);
+},true);
+function closeDlg(){S.dlg=null;$("#layer").innerHTML="";var rp=$("#rpt");if(rp)rp.remove();closePreview()}
 function newJob(){
  var n=new Date().toISOString();
  openJob({id:rid(),no:"",kind:"work",quoteDue:"",workDate:"",doneDate:"",site:"",reqNo:"",caseNo:"",detail:"",status:0,source:"manual",createdAt:n,receivedAt:n,customer:AP.CLIENT,contact:"",email:"",tel:"",subject:"",items:[],deliveryDate:"",deliveryTo:"",amount:null,staff:"",note:"",urgent:false,needsReview:false,issues:[],history:[]},{draft:true});
@@ -1606,7 +1647,11 @@ document.addEventListener("click",async function(ev){
   case "new":newJob();break;
   case "phpick":{var pi=$("#phi");if(pi)pi.click();break}
   case "phdel":delPhoto(+t.dataset.i);break;
-  case "phview":{var pl=readPhotos(),pp=pl[+t.dataset.i];if(pp)window.open(photoSrc(pp),"_blank","noopener");break}
+  case "phview":openPreview("p",+t.dataset.i);break;
+  case "pvopen":openPreview(t.dataset.k,+t.dataset.i);break;
+  case "pvclose":closePreview();break;
+  case "pvprev":stepPreview(-1);break;
+  case "pvnext":stepPreview(1);break;
   case "report":openReport();break;
   case "rpclose":{var rb=$("#rpt");if(rb)rb.remove();break}
   case "rpsave":saveReport();break;
