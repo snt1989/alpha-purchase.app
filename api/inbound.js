@@ -42,7 +42,7 @@ module.exports = async (req, res) => {
   try {
     // 添付がなく本文にダウンロードリンク(kintone)がある場合は、リンク先のPDFを取得して作業依頼書として読む
     if (!atts.length && /mailer\.kintoneapp\.com/.test(mail.body)) {
-      const lk = await fetchLinkedPdfs(mail.body, b.debugLink === true, linkEmails(b));
+      const lk = await fetchLinkedPdfs(mail.body, b.debugLink === true, linkEmails(b), typeof b.debugGrep === "string" ? b.debugGrep : "");
       linkDiag = lk.diag;
       lk.files.forEach((f) => atts.push(f));
     }

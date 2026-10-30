@@ -38,7 +38,7 @@ function forms(html, base) {
   return out;
 }
 
-async function fetchLinkedPdfs(body, debug, emails) {
+async function fetchLinkedPdfs(body, debug, emails, grep) {
   const urls = []; const seen = {};
   (String(body || "").match(/https:\/\/mailer\.kintoneapp\.com\/[^\s"'<>)）」]+/g) || []).forEach((u) => { if (!seen[u]) { seen[u] = 1; urls.push(u) } });
   const names = []; String(body || "").replace(/「([^」\n]+\.pdf)」/gi, (_, n) => { names.push(n) });
@@ -67,6 +67,15 @@ async function fetchLinkedPdfs(body, debug, emails) {
           const hd = a.cookie ? { Cookie: a.cookie } : {};
           const x = await tryUrl(base + "/download/" + enc, { headers: hd }, "download");
           if (isPdf(x.data)) { got = x; break }
+          if (debug && grep && x.data && /html/i.test(x.ct)) {
+            const h3 = new TextDecoder().decode(x.data); d.grep = [];
+            const cs = Array.from(new Set(h3.match(/\/_next\/static\/chunks\/[A-Za-z0-9_\-]+\.js/g) || [])).slice(0, 40);
+            const re3 = new RegExp(grep, "g");
+            for (const c of cs) {
+              try { const y = await get(new URL(c, r.url).href); const js = new TextDecoder().decode(y.data || new Uint8Array()); let m; let n = 0;
+                while ((m = re3.exec(js)) && n < 3 && d.grep.length < 10) { n++; d.grep.push({ c, at: js.slice(Math.max(0, m.index - 300), m.index + 500) }) } } catch (e) {}
+            }
+          }
           if (debug && x.data && /html|json|text/i.test(x.ct)) {
             const h2 = new TextDecoder().decode(x.data);
             d.dl = { title: (h2.match(/<title>([^<]*)/) || [])[1], text: h2.replace(/<script[\s\S]*?<\/script>/g, "").replace(/<style[\s\S]*?<\/style>/g, "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").slice(0, 500), flight: (h2.match(/self\.__next_f\.push\(\[1,"[^\n]{0,400}(?:error|Error|url|Url|token|blob|pdf)[^\n]{0,400}/g) || []).slice(0, 5).map((z) => z.slice(0, 700)) };
