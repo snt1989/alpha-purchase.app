@@ -45,6 +45,7 @@ async function aiExtract(mail, own) {
   } finally { clearTimeout(timer); }
 }
 
+const gmUrl = (id) => (/^[0-9a-f]{8,}$/i.test(String(id || "")) ? "https://mail.google.com/mail/u/0/#all/" + id : "");
 /**
  * mail: { from, subject, date, body, messageId }
  * opts: { source: "paste"|"gmail", dryRun, force }
@@ -75,7 +76,7 @@ async function ingest(mail, opts) {
     }
     if (!ex.isOrder) {
       if (!opts.force) {
-        if (!opts.dryRun) await redis(["HSET", K.mails, key, JSON.stringify({ key, at: now, state: "skipped", from: mail.from, subject: mail.subject, reason: "受注依頼ではないと判定" })]);
+        if (!opts.dryRun) await redis(["HSET", K.mails, key, JSON.stringify({ key, at: now, state: "skipped", from: mail.from, subject: mail.subject, date: mail.date || "", url: gmUrl(mail.messageId), reason: "受注依頼ではないと判定" })]);
         return { state: "skipped", jobs: [], key, ai: usedAi };
       }
       // 手動指定: 空の案件を作って、メール内容を見ながら入力できるようにする

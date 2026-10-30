@@ -873,6 +873,7 @@ var ICONS={home:'<path d="M3 11l9-8 9 8v10a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1
  bld:'<path d="M4 21V4a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v17M15 9h4a1 1 0 0 1 1 1v11M2 21h20M8 7h3M8 11h3M8 15h3"/>',
 
  doc:'<path d="M7 3h7l5 5v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5M9 13h6M9 17h6"/>',
+ mail:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3.5 6.5 8.5 6.5 8.5-6.5"/>',
  set:'<path d="M4 6h8M16 6h4M4 12h2M10 12h10M4 18h10M18 18h2"/><circle cx="14" cy="6" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="16" cy="18" r="2"/>'};
 function ic(n){return '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">'+ICONS[n]+'</svg>'}
 function e(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
@@ -891,6 +892,7 @@ var LS="ap:v1";
 function lsGet(){try{return JSON.parse(localStorage.getItem(LS))||{}}catch(x){return {}}}
 function lsSet(d){try{localStorage.setItem(LS,JSON.stringify(d))}catch(x){toast("保存できませんでした(ブラウザの保存容量)")}}
 function vals(o){return Object.keys(o||{}).map(function(k){return o[k]})}
+function gmUrl(id){return /^[0-9a-f]{8,}$/i.test(String(id||""))?"https://mail.google.com/mail/u/0/#all/"+id:""}
 function buildMail(p){
   var m={from:String(p.from||""),subject:String(p.subject||""),date:String(p.date||""),messageId:String(p.messageId||""),body:String(p.text||"")};
   if(!m.from&&!m.subject){var s=AP.sniffHeaders(m.body);m.from=s.from;m.subject=s.subject;m.date=s.date||m.date;m.body=s.body}
@@ -913,7 +915,7 @@ var Local={
   var own=d.settings&&d.settings.own&&d.settings.own.length?d.settings.own:AP.OWN_DEFAULT;
   var ex=AP.normalizeExtract(AP.heuristic(mail,{own:own}),mail);
   if(!ex.isOrder){
-   if(!p.force){if(!p.dryRun){d.mails[key]={key:key,at:now,state:"skipped",from:mail.from,subject:mail.subject,reason:"受注依頼ではないと判定"};lsSet(d)}return {state:"skipped",jobs:[],key:key}}
+   if(!p.force){if(!p.dryRun){d.mails[key]={key:key,at:now,state:"skipped",from:mail.from,subject:mail.subject,date:mail.date||"",url:gmUrl(mail.messageId),reason:"受注依頼ではないと判定"};lsSet(d)}return {state:"skipped",jobs:[],key:key}}
    var f=AP.parseFrom(mail.from);
    ex.orders=[{customer:"",contact:f.name,email:f.email,tel:"",subject:mail.subject||"",deliveryDate:"",deliveryTo:"",items:[],urgent:false,note:"",total:null}];
    ex.uncertain.unshift("受注依頼と判定できませんでしたが、指定により登録しました");
@@ -998,7 +1000,7 @@ var Art={
   catch(x){aiErr=x&&x.code==="not_granted"?"AIの利用が許可されていません":(x&&(x.message||x.code))||"失敗";if(x&&(x.code==="not_granted"||x.code==="sampling_disabled")){CAP.sample=null;S.flags.ai=false}}
   if(!ex){ex=AP.normalizeExtract(AP.heuristic(mail,{own:own}),mail);if(aiErr)ex.uncertain.unshift("AI解析を使えなかったため簡易解析しました("+String(aiErr).slice(0,60)+")")}
   if(!ex.isOrder){
-   if(!p.force){if(!p.dryRun)await Art.saveMail({key:key,at:now,state:"skipped",from:mail.from,subject:mail.subject,reason:"受注依頼ではないと判定",ai:used});return {state:"skipped",jobs:[],key:key,ai:used}}
+   if(!p.force){if(!p.dryRun)await Art.saveMail({key:key,at:now,state:"skipped",from:mail.from,subject:mail.subject,date:mail.date||"",url:gmUrl(mail.messageId),reason:"受注依頼ではないと判定",ai:used});return {state:"skipped",jobs:[],key:key,ai:used}}
    var f=AP.parseFrom(mail.from);
    ex.orders=[{customer:"",contact:f.name,email:f.email,tel:"",subject:mail.subject||"",deliveryDate:"",deliveryTo:"",items:[],urgent:false,note:"",total:null}];
    ex.uncertain.unshift("受注依頼と判定できませんでしたが、指定により登録しました");
@@ -1041,8 +1043,9 @@ function dueText(o){var d=dueOf(o),lb=dueKind(o);if(o.status===2)return '<span c
 if(n<0)return '<span class="late">'+t+'(超過'+(-n)+'日)</span>';if(n===0)return '<b class="late">本日 '+t+'</b>';if(n<=3)return '<b style="color:var(--warn)">'+t+'(あと'+n+'日)</b>';return t}
 
 /* ================= 画面 ================= */
-var NAV=[["home","ホーム","home"],["list","案件一覧","list"],["import","依頼の取込","mail"],["docs","書類の確認","doc"],["cust","店舗","bld"],["set","設定","set"]];
-function badge(tab){if(tab==="list"){var n=S.orders.filter(function(o){return o.status===0}).length;return n?'<span class="n">'+n+'</span>':""}return ""}
+var NAV=[["home","ホーム","home"],["list","案件一覧","list"],["import","依頼の取込","mail"],["docs","書類の確認","doc"],["mail","未処理メール","mail"],["cust","店舗","bld"],["set","設定","set"]];
+function mailTodo(){return (S.mails||[]).filter(function(m){return m.state==="skipped"||m.state==="error"})}
+function badge(tab){if(tab==="mail"){var k=mailTodo().length;return k?'<span class="n">'+k+'</span>':""}if(tab==="list"){var n=S.orders.filter(function(o){return o.status===0}).length;return n?'<span class="n">'+n+'</span>':""}return ""}
 function renderNav(){
  $("#side").innerHTML='<div class="brand"><span class="plate"><img src="'+LOGO+'" alt="Alpha Purchase"></span><div class="nm">受注ナビ<small>SANOH × ALPHA PURCHASE</small></div></div>'+
   NAV.map(function(n){return '<button class="nv" data-a="tab" data-t="'+n[0]+'"'+(S.tab===n[0]?' aria-current="page"':"")+'>'+ic(n[2])+'<span>'+n[1]+'</span>'+badge(n[0])+'</button>'}).join("")+
@@ -1056,7 +1059,7 @@ function renderNav(){
 function render(){
  renderNav();
  var m=$("#main");
- m.innerHTML=({home:pgHome,list:pgList,import:pgImport,docs:pgDocs,cust:pgCust,set:pgSet})[S.tab]();
+ m.innerHTML=({home:pgHome,list:pgList,import:pgImport,docs:pgDocs,mail:pgMail,cust:pgCust,set:pgSet})[S.tab]();
  if(S.tab==="list")renderList();
  if(S.tab==="import")renderLog();
 }
@@ -1474,6 +1477,18 @@ function dupCard(){
   '<button class="btn sm" data-a="dupdel">チェックした案件を削除</button></div>';
 }
 async function loadOrph(){if(S.mode!=="server"){S.orph=[];return}try{var r=await post("/api/db",{op:"orphans"});S.orph=r.docs||[]}catch(x){S.orph=[]}if(S.tab==="docs")render()}
+/* ---- 未処理メール: 自動で案件にできなかったメール(受注依頼ではないと判定・読み取り失敗) ---- */
+function pgMail(){
+ var L=mailTodo().sort(function(a,b){return String(b.date||b.at).localeCompare(String(a.date||a.at))});
+ var h='<div class="pghead"><h2 class="pt">未処理メール</h2></div><div class="sub" style="margin-bottom:10px">自動で案件にできなかったアルファパーチェスからのメールです。内容を確認して、案件として登録するか「対応済みにする」を押してください。</div>';
+ if(!L.length)return h+'<div class="panel empty">未処理のメールはありません</div>';
+ return h+'<div class="summary-line" style="margin-bottom:8px"><b>'+L.length+'</b> 件</div>'+L.map(function(m){
+  return '<div class="card2"><div style="font-weight:700;overflow-wrap:anywhere">'+e(m.subject||"(件名なし)")+'</div>'+
+   '<div class="sub" style="margin:4px 0">'+e(String(m.date||m.at||"").slice(0,16).replace("T"," "))+' ・ '+e(m.from||"")+' ・ '+e(m.reason||(m.state==="error"?"読み取りに失敗しました":"受注依頼ではないと判定"))+'</div>'+
+   '<div class="row2" style="gap:8px;flex-wrap:wrap">'+(m.url?'<a class="btn sm" href="'+e(m.url)+'" target="_blank" rel="noopener">Gmailで開く ↗</a>':"")+
+   '<button class="btn sm pri" data-a="mailnew" data-k="'+e(m.key)+'">案件として登録</button>'+
+   '<button class="btn sm" data-a="maildone" data-k="'+e(m.key)+'">対応済みにする</button></div></div>'}).join("");
+}
 function pgDocs(){
  if(!S.orphLoaded){S.orphLoaded=true;loadOrph()}
  var L=S.orders.filter(function(o){return o.status!==8}).map(function(o){var d=docState(o);return {o:o,d:d,n:(d.order?1:0)+(d.report?1:0)}});
@@ -1658,7 +1673,9 @@ async function saveJob(){
    if(!o.no)o.no=await Store.nextNo();
    o.history.push({at:now,text:d.key?"確認のうえ登録":"手入力で登録"});
    if(!o.source)o.source="manual";
+   var fromMail=o.mailKey;delete o.mailKey;
    await Store.saveOrder(o);
+   if(fromMail){var fm=(S.mails||[]).filter(function(x){return x.key===fromMail})[0];if(fm){fm.was=fm.state;fm.state="done";fm.doneAt=now;fm.jobs=[{id:o.id,no:o.no}];try{await Store.saveMail(fm)}catch(x){}}}
    if(d.key)await Store.saveMail({key:d.key,at:now,state:"registered",from:(o.mail||{}).from,subject:(o.mail||{}).subject,jobs:[{id:o.id,no:o.no}]});
   }else{
    if(prev!==o.status)o.history.push({at:now,text:"状態: "+ST[prev]+" → "+ST[o.status]});
@@ -1916,9 +1933,9 @@ async function pollGm(){
 }
 function gmDetail(){var s=gmState();return s?'<span class="gm '+s.c+'"><i></i>'+e(s.t)+'</span> <span class="sub">'+e(s.d)+'</span>':""}
 function closeDlg(){S.dlg=null;$("#layer").innerHTML="";var rp=$("#rpt");if(rp)rp.remove();closePreview()}
-function newJob(){
- var n=new Date().toISOString();
- openJob({id:rid(),no:"",kind:"work",quoteDue:"",workDate:"",doneDate:"",site:"",reqNo:"",caseNo:"",detail:"",status:0,source:"manual",createdAt:n,receivedAt:n,customer:AP.CLIENT,contact:"",email:"",tel:"",subject:"",items:[],deliveryDate:"",deliveryTo:"",amount:null,staff:"",note:"",urgent:false,needsReview:false,issues:[],history:[]},{draft:true});
+function newJob(pre){
+ var n=new Date().toISOString();pre=pre||{};
+ openJob({id:rid(),no:"",kind:"work",quoteDue:"",workDate:"",doneDate:"",site:pre.site||"",reqNo:"",caseNo:"",detail:"",status:0,source:pre.source||"manual",mailKey:pre.mailKey,createdAt:n,receivedAt:n,customer:AP.CLIENT,contact:"",email:"",tel:"",subject:pre.subject||"",items:[],deliveryDate:"",deliveryTo:"",amount:null,staff:"",note:"",urgent:false,needsReview:false,issues:[],history:[]},{draft:true});
 }
 
 /* ================= メール取込の操作 ================= */
@@ -2023,6 +2040,12 @@ document.addEventListener("click",async function(ev){
    uo.history=(uo.history||[]).concat({at:new Date().toISOString(),text:ul+"の紐づけを解除"});
    S.settings.looseDocs=(S.settings.looseDocs||[]).concat(gone.map(function(f,i){return {id:"ld"+Date.now()+i,name:f.name||ul,url:f.url||"",kind:uk,label:ul,fromNo:uo.no,fromSite:title(uo),at:new Date().toISOString()}}));
    try{await Store.saveOrder(uo);await saveSettings();var wasDlg=!!S.dlg;if(wasDlg)closeDlg();await reload(true);render();toast(ul+"の紐づけを解除しました(「書類の確認」の未紐づけに残ります)");if(wasDlg){var nj=S.orders.filter(function(x){return x.id===uo.id})[0];if(nj)openJob(nj)}}catch(x){toast("解除に失敗しました: "+(x.message||x.code))}
+   break}
+  case "mailnew":{var mm=(S.mails||[]).filter(function(x){return x.key===t.dataset.k})[0];if(!mm)break;
+   newJob({subject:mm.subject||"",site:subjStore({subject:mm.subject||""}),source:"gmail",mailKey:mm.key});break}
+  case "maildone":{var md=(S.mails||[]).filter(function(x){return x.key===t.dataset.k})[0];if(!md)break;
+   md.was=md.state;md.state="done";md.doneAt=new Date().toISOString();
+   try{await Store.saveMail(md);render();toast("対応済みにしました")}catch(x){md.state=md.was;toast("更新できませんでした")}
    break}
   case "dupchk":S.dupOn=!S.dupOn;render();if(S.dupOn&&!dupGroups().length)toast("重複している案件はありません");break;
   case "dupdel":{
