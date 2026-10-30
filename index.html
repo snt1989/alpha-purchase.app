@@ -805,6 +805,14 @@ function pgDocs(){
  h+='<div class="card2" style="padding:0"><div class="scroll"><table class="items" style="min-width:760px"><thead><tr><th>案件No</th><th>店舗・件名</th><th>依頼番号 / 案件番号</th><th>作業依頼書</th><th>作業完了報告書</th><th>状態</th></tr></thead><tbody>'+
   (rows.length?rows.map(function(x){var o=x.o;return '<tr data-a="open" data-id="'+e(o.id)+'" style="cursor:pointer"><td class="nw">'+e(o.no||"")+'</td><td><b>'+e(title(o))+'</b>'+(siteParts(o).jur?' <span class="sub">管轄: '+e(siteParts(o).jur)+'</span>':"")+'<div class="sub">'+e(o.subject||"")+'</div></td><td class="sub">'+e(o.reqNo||"—")+(o.caseNo?' / '+e(o.caseNo):"")+'</td><td>'+docTag(x.d.order,o.id,'order')+'</td><td>'+docTag(x.d.report,o.id,'report')+'</td><td class="nw">'+e((ST[o.status]||"")+(o.provisional?"(仮)":""))+'</td></tr>'}).join(""):'<tr><td colspan="6"><div class="empty">該当する案件はありません</div></td></tr>')+
   '</tbody></table></div></div>';
+ var LD=S.settings.looseDocs||[];
+ if(LD.length){
+  var opts='<option value="">案件を選ぶ</option>'+S.orders.filter(function(o){return o.status!==8}).map(function(o){return '<option value="'+e(o.id)+'">'+e(o.no+" "+title(o))+'</option>'}).join("");
+  h+='<div class="card2" style="margin-top:14px"><h3>未紐づけの書類('+LD.length+')</h3><div class="sub" style="margin-bottom:8px">案件から外した書類です。案件を選んで、もう一度紐づけできます。</div>'+
+   LD.map(function(d){return '<div class="row2" style="align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap"><span class="tag">'+e(d.label||"")+'</span><b style="min-width:0">'+e(d.name)+'</b><span class="sub">元の案件: '+e((d.fromNo||"")+" "+(d.fromSite||""))+'</span><span class="sp"></span>'+
+    (d.url?'<a class="btn sm" href="'+e(d.url)+'" target="_blank" rel="noopener">開く</a>':"")+
+    '<select class="ldsel" data-id="'+e(d.id)+'">'+opts+'</select><button class="btn sm pri" data-a="ldlink" data-id="'+e(d.id)+'">紐づける</button><button class="btn sm" data-a="lddel" data-id="'+e(d.id)+'">削除</button></div>'}).join("")+'</div>';
+ }
  return h;
 }
 function pgCust(){
@@ -1301,13 +1309,27 @@ document.addEventListener("click",async function(ev){
   case "discard":S.queue=[];closeDlg();toast("破棄しました(登録していません)");break;
   case "savejob":await saveJob();break;
   case "advance":{var sel=$("#f-status"),v=Number(sel.value);if(v<7){sel.value=v+1;toast("状態を「"+ST[v+1]+"」にしました。保存で確定します")}break}
+  case "ldlink":{
+   var li=t.dataset.id,sel=document.querySelector('select.ldsel[data-id="'+li+'"]'),ld=(S.settings.looseDocs||[]).filter(function(x){return x.id===li})[0];
+   if(!ld||!sel||!sel.value){toast("紐づける案件を選んでください");break}
+   var lo=S.orders.filter(function(x){return x.id===sel.value})[0];if(!lo)break;
+   lo.files=(lo.files||[]).filter(function(f){return docKind(f)!==ld.kind}).concat([{name:ld.name,url:ld.url,label:ld.label,kind:ld.kind}]);
+   lo.history=(lo.history||[]).concat({at:new Date().toISOString(),text:ld.label+"を紐づけ("+ld.name+")"});
+   S.settings.looseDocs=S.settings.looseDocs.filter(function(x){return x.id!==li});
+   try{await Store.saveOrder(lo);await saveSettings();await reload(true);render();toast(lo.no+" に"+ld.label+"を紐づけました")}catch(x){toast("失敗しました: "+(x.message||x.code))}
+   break}
+  case "lddel":{
+   if(t.dataset.armed!=="1"){t.dataset.armed="1";t.textContent="もう一度押すと削除";t.classList.add("pri");setTimeout(function(){if(t.isConnected){t.dataset.armed="";t.textContent="削除";t.classList.remove("pri")}},4000);break}
+   S.settings.looseDocs=(S.settings.looseDocs||[]).filter(function(x){return x.id!==t.dataset.id});await saveSettings();render();toast("未紐づけの書類を削除しました");break}
   case "undoc":{
    if(t.dataset.armed!=="1"){t.dataset.armed="1";t.textContent="もう一度押すと解除";t.classList.add("pri");setTimeout(function(){if(t.isConnected){t.dataset.armed="";t.textContent="紐づけ解除";t.classList.remove("pri")}},4000);break}
    var uo=S.orders.filter(function(x){return x.id===t.dataset.id})[0];if(!uo)break;
    var uk=t.dataset.k,ul=uk==="order"?"作業依頼書":"作業完了報告書";
+   var gone=(uo.files||[]).filter(function(f){return docKind(f)===uk});
    uo.files=(uo.files||[]).filter(function(f){return docKind(f)!==uk});
    uo.history=(uo.history||[]).concat({at:new Date().toISOString(),text:ul+"の紐づけを解除"});
-   try{await Store.saveOrder(uo);var wasDlg=!!S.dlg;if(wasDlg)closeDlg();await reload(true);render();toast(ul+"の紐づけを解除しました");if(wasDlg){var nj=S.orders.filter(function(x){return x.id===uo.id})[0];if(nj)openJob(nj)}}catch(x){toast("解除に失敗しました: "+(x.message||x.code))}
+   S.settings.looseDocs=(S.settings.looseDocs||[]).concat(gone.map(function(f,i){return {id:"ld"+Date.now()+i,name:f.name||ul,url:f.url||"",kind:uk,label:ul,fromNo:uo.no,fromSite:title(uo),at:new Date().toISOString()}}));
+   try{await Store.saveOrder(uo);await saveSettings();var wasDlg=!!S.dlg;if(wasDlg)closeDlg();await reload(true);render();toast(ul+"の紐づけを解除しました(「書類の確認」の未紐づけに残ります)");if(wasDlg){var nj=S.orders.filter(function(x){return x.id===uo.id})[0];if(nj)openJob(nj)}}catch(x){toast("解除に失敗しました: "+(x.message||x.code))}
    break}
   case "dupchk":S.dupOn=!S.dupOn;render();if(S.dupOn&&!dupGroups().length)toast("重複している案件はありません");break;
   case "dupdel":{
