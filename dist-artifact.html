@@ -1376,13 +1376,13 @@ function docState(o){
 }
 function docTag(f){return f?(fileSrc(f)?'<span class="tag" style="color:var(--ok);border-color:var(--ok)">✓ 紐づけ済</span>':'<span class="tag rv" title="サイズが大きく保存されていません">名前のみ</span>'):'<span class="tag" style="color:var(--bad);border-color:var(--bad)">— なし</span>'}
 function pgDocs(){
- var L=S.orders.filter(function(o){return o.status!==8&&(o.kind==="work"||o.reqNo||(o.files||[]).length)}).map(function(o){var d=docState(o);return {o:o,d:d,n:(d.order?1:0)+(d.report?1:0)}});
+ var L=S.orders.filter(function(o){return o.status!==8}).map(function(o){var d=docState(o);return {o:o,d:d,n:(d.order?1:0)+(d.report?1:0)}});
  var c={all:L.length,both:L.filter(function(x){return x.n===2}).length,one:L.filter(function(x){return x.n===1}).length,none:L.filter(function(x){return x.n===0}).length};
  c.miss=c.one+c.none;
  var f=S.docf||"all",rows=L.filter(function(x){return f==="all"||(f==="both"&&x.n===2)||(f==="miss"&&x.n<2)||(f==="one"&&x.n===1)||(f==="none"&&x.n===0)});
  rows.sort(function(a,b){return (a.n-b.n)||String(b.o.receivedAt||b.o.createdAt).localeCompare(String(a.o.receivedAt||a.o.createdAt))});
  var h='<div class="pghead"><h2 class="pt">書類の確認</h2><div class="pgact">'+(S.mode==="server"?'<label class="btn out" style="cursor:pointer">作業依頼書PDFを追加<input type="file" id="wpf" accept=".pdf,.zip,application/pdf" multiple hidden></label>':"")+'</div></div>';
- h+='<div class="sub" style="margin-bottom:10px">作業依頼書と作業完了報告書の2枚が、案件に紐づいているかを一覧で確認できます(作業依頼の案件が対象)。行をクリックすると案件が開き、2枚を画像で見られます。</div>';
+ h+='<div class="sub" style="margin-bottom:10px">作業依頼書と作業完了報告書の2枚が、案件に紐づいているかを一覧で確認できます(キャンセル以外のすべての案件が対象)。行をクリックすると案件が開き、2枚を画像で見られます。</div>';
  h+='<div class="grid alerts">'+
   '<button class="alert'+(f==="all"?" warm":"")+'" data-a="docf" data-f="all"><b>'+c.all+'</b><span>すべて</span></button>'+
   '<button class="alert'+(f==="both"?" warm":"")+'" data-a="docf" data-f="both"><b style="color:var(--ok)">'+c.both+'</b><span>2枚そろっている</span></button>'+
