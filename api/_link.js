@@ -67,7 +67,10 @@ async function fetchLinkedPdfs(body, debug, emails) {
           const hd = a.cookie ? { Cookie: a.cookie } : {};
           const x = await tryUrl(base + "/download/" + enc, { headers: hd }, "download");
           if (isPdf(x.data)) { got = x; break }
-          if (debug && x.data && /html|json|text/i.test(x.ct)) d.dl = new TextDecoder().decode(x.data).replace(/\s+/g, " ").slice(0, 600);
+          if (debug && x.data && /html|json|text/i.test(x.ct)) {
+            const h2 = new TextDecoder().decode(x.data);
+            d.dl = { title: (h2.match(/<title>([^<]*)/) || [])[1], text: h2.replace(/<script[\s\S]*?<\/script>/g, "").replace(/<style[\s\S]*?<\/style>/g, "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").slice(0, 500), flight: (h2.match(/self\.__next_f\.push\(\[1,"[^\n]{0,400}(?:error|Error|url|Url|token|blob|pdf)[^\n]{0,400}/g) || []).slice(0, 5).map((z) => z.slice(0, 700)) };
+          }
         }
         if (!got) for (const c of candidates(html, r.url)) { const x = await tryUrl(c, null, "link"); if (isPdf(x.data)) { got = x; break } }
         if (!got) for (const f of forms(html, r.url)) {
