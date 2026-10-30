@@ -123,6 +123,26 @@ details summary{cursor:pointer;font-weight:700;font-size:13px}
 .mailbody{white-space:pre-wrap;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;font-size:12.5px;max-height:260px;overflow:auto;margin-top:6px}
 .issues{background:var(--warn-soft);color:var(--warn);border-radius:10px;padding:8px 12px;font-size:13px}
 .issues ul{margin:4px 0 0 18px;padding:0}
+.phs{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.phc{border:1px solid var(--line);border-radius:10px;padding:6px;display:flex;flex-direction:column;gap:5px;background:var(--bg)}
+.phc img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:6px;cursor:zoom-in;background:#0001}
+.phc select,.phc input{font:inherit;font-size:12.5px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);width:100%;min-width:0}
+.rpt{position:fixed;inset:0;z-index:80;background:#0008;overflow:auto;padding:14px}
+.rpt .bar{max-width:820px;margin:0 auto 10px;display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.rpt .pg{max-width:820px;margin:0 auto;background:#fff;color:#111;padding:28px 32px;border-radius:6px;font-size:13.5px;line-height:1.6}
+.rpt h1{font-size:21px;text-align:center;letter-spacing:.3em;margin:0 0 14px;border-bottom:2px solid #111;padding-bottom:8px}
+.rpt table{width:100%;min-width:0;table-layout:fixed;border-collapse:collapse;margin:0 0 12px;display:table}
+.rpt th,.rpt td{border:1px solid #888;padding:4px 8px;text-align:left;vertical-align:top;font-size:13px;color:#111;word-break:break-all}
+.rpt th{background:#f1f1f1;width:24%;font-weight:600;white-space:normal}
+.rpt .ed{border:1px solid #888;min-height:70px;padding:6px 8px;white-space:pre-wrap;outline:none}
+.rpt .ed:focus{background:#fffbe6}
+.rpt h3{font-size:14px;margin:12px 0 4px;border-left:4px solid #111;padding-left:6px}
+.rpt .rg{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.rpt .rg figure{margin:0;border:1px solid #888;padding:4px;break-inside:avoid}
+.rpt .rg img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block}
+.rpt .rg figcaption{font-size:12px;padding-top:3px}
+.rpt .rg figcaption b{background:#222;color:#fff;border-radius:3px;padding:0 5px;margin-right:4px;font-weight:500}
+@media print{body>*:not(#rpt){display:none!important}.rpt{position:static;background:none;padding:0;overflow:visible}.rpt .bar{display:none}.rpt .pg{max-width:none;padding:0;border-radius:0}.rpt .ed{border-color:#888}}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(24px + env(safe-area-inset-bottom,0px));background:var(--toast-bg);color:var(--toast-ink);padding:8px 16px;border-radius:8px;z-index:99;font-size:13px;max-width:90vw}
 .login{position:fixed;inset:0;z-index:99;background:var(--side);display:flex;align-items:center;justify-content:center}
 .login form{background:var(--surface);border-radius:12px;padding:28px 26px;width:min(340px,92vw);box-shadow:0 8px 30px #0006;display:flex;flex-direction:column;gap:10px}
@@ -1344,6 +1364,7 @@ function openJob(o,opt){
   '<label class="wide">社内メモ<textarea id="f-note" rows="2">'+e(o.note)+'</textarea></label>'+
   '<label class="chk"><input type="checkbox" id="f-urg"'+(o.urgent?" checked":"")+'> 至急</label><label class="chk"><input type="checkbox" id="f-rev"'+(o.needsReview?" checked":"")+'> 要確認(内容を確認したらチェックを外す)</label></div>';
  if((o.files||[]).length)h+='<div class="row2"><b style="font-size:13px">添付</b>'+o.files.map(function(f){var href=f.asset?"/_blob/"+f.asset:f.url||"";return href?'<a class="btn sm" href="'+e(href)+'" target="_blank" rel="noopener">'+e(f.name||"PDF")+' を開く</a>':'<span class="pill">'+e(f.name||"")+'</span>'}).join("")+'</div>';
+ if(!draft)h+=photoSection(o);
  h+='<h3 style="font-family:var(--f-head);font-size:15px;margin:0">見積明細</h3><div class="scroll"><table class="items" id="items"><thead><tr><th>品名・作業項目</th><th>規格・型番</th><th>数量</th><th>単位</th><th>単価(税抜)</th><th>金額</th><th></th></tr></thead><tbody>'+(o.items&&o.items.length?o.items:[{}]).map(itemRow).join("")+'</tbody></table></div>'+
   '<div class="row2"><button class="btn sm" data-a="addrow">行を追加</button><span class="sp"></span></div><div class="sum" id="sum"></div>';
  if(o.mail&&o.mail.body)h+='<details><summary>元のメール'+(o.mail.subject?'(件名: '+e(o.mail.subject)+')':"")+'</summary><div class="sub" style="margin-top:4px">'+e(o.mail.from||"")+(o.mail.date?" ／ "+e(new Date(o.mail.date).toLocaleString("ja-JP")):"")+'</div><div class="mailbody">'+e(o.mail.body)+'</div></details>';
@@ -1369,6 +1390,7 @@ async function saveJob(){
  o.site=$("#f-site").value.trim();o.storeCode=$("#f-scode").value.trim();o.siteTel=$("#f-stel").value.trim();o.reqNo=$("#f-reqno").value.trim();o.caseNo=$("#f-caseno").value.trim();o.quoteNo=$("#f-qno").value.trim();o.category=$("#f-cat").value.trim();o.detail=$("#f-detail").value.trim();o.schedule=$("#f-sched").value.trim();o.staff=$("#f-staff").value;
  o.customer=$("#f-cust").value.trim();o.contact=$("#f-contact").value.trim();o.tel=$("#f-tel").value.trim();o.email=$("#f-email").value.trim();
  o.subject=$("#f-subj").value.trim();o.deliveryTo=$("#f-to").value.trim();o.note=$("#f-note").value.trim();o.urgent=$("#f-urg").checked;o.needsReview=$("#f-rev").checked;
+ if($("#ph"))o.photos=readPhotos();
  o.items=readRows();var amt=AP.amountOf(o.items,null);o.amount=amt!=null?amt:(o.items.length?null:o.amount);
  if(!o.customer&&!o.site){toast("取引先か店舗名を入力してください");return}
  if(o.status===4&&!o.doneDate)o.doneDate=today();
@@ -1389,7 +1411,133 @@ async function saveJob(){
  toast(d.draft?"登録しました: "+o.no:"保存しました");
  if(S.queue.length){var nx=S.queue.shift();openJob(nx.job,{draft:true,key:nx.key})}
 }
-function closeDlg(){S.dlg=null;$("#layer").innerHTML=""}
+
+/* ---- 写真 ---- */
+var PTAGS=["作業前","作業中","作業後","その他"];
+function photoSrc(p){return p.asset?"/_blob/"+p.asset:p.url||p.data||""}
+Local.uploadPhoto=async function(jobId,img){return {data:img.dataUrl}};
+Local.deletePhoto=async function(){};
+Server.uploadPhoto=async function(jobId,img){var r=await post("/api/photo",{op:"put",jobId:jobId,name:img.name,b64:img.dataUrl.split(",")[1]});return {id:r.id,url:r.url}};
+Server.deletePhoto=function(p){return p.id?post("/api/photo",{op:"del",id:p.id}):Promise.resolve()};
+Art.uploadPhoto=async function(jobId,img){if(!CAP.assets)throw new Error("写真の保存が許可されていません");var up=await CAP.assets.upload(img.blob);return {id:up.id,asset:up.id}};
+Art.deletePhoto=async function(){};
+// 写真を縮小(長辺1280px・JPEG)。スマホの大きな写真もそのまま送れるように
+function shrinkImage(file){
+ return new Promise(function(res,rej){
+  var url=URL.createObjectURL(file),im=new Image();
+  im.onload=function(){
+   var w=im.naturalWidth,h=im.naturalHeight,k=Math.min(1,1280/Math.max(w,h)),c=document.createElement("canvas");
+   c.width=Math.round(w*k);c.height=Math.round(h*k);c.getContext("2d").drawImage(im,0,0,c.width,c.height);URL.revokeObjectURL(url);
+   var q=0.78,d=c.toDataURL("image/jpeg",q);
+   while(d.length>820000&&q>0.35){q-=0.1;d=c.toDataURL("image/jpeg",q)}
+   c.toBlob(function(b){res({dataUrl:d,blob:b,name:(file.name||"photo").replace(/\.[^.]+$/,"")+".jpg"})},"image/jpeg",q);
+  };
+  im.onerror=function(){URL.revokeObjectURL(url);rej(new Error("画像として読めませんでした: "+(file.name||"")))};
+  im.src=url;
+ });
+}
+function photoSection(o){
+ return '<div class="row2"><b style="font-size:13px">写真(<span id="phn">'+(o.photos||[]).length+'</span>枚)</b><span class="sp"></span>'+
+  '<button class="btn sm" data-a="phpick">写真を追加</button><button class="btn sm out" data-a="report">報告書を作成</button>'+
+  '<input type="file" id="phi" accept="image/*" multiple hidden></div><div class="phs" id="ph">'+photoCards(o.photos||[])+'</div>';
+}
+function photoCards(list){
+ return list.map(function(p,i){
+  return '<div class="phc"><img src="'+e(photoSrc(p))+'" alt="" data-a="phview" data-i="'+i+'" loading="lazy">'+
+   '<select class="pht" data-i="'+i+'">'+PTAGS.map(function(t){return '<option'+((p.tag||"作業後")===t?" selected":"")+'>'+t+'</option>'}).join("")+'</select>'+
+   '<input class="phcap" data-i="'+i+'" value="'+e(p.caption||"")+'" placeholder="説明(例: 洗面台の水漏れ修理後)" maxlength="80">'+
+   '<button class="btn sm danger" data-a="phdel" data-i="'+i+'">削除</button></div>';
+ }).join("")||'<div class="sub">写真はまだありません。「写真を追加」から選ぶと、作業完了報告書に載せられます。</div>';
+}
+function readPhotos(){
+ var d=S.dlg;if(!d)return [];var list=(d.job.photos||[]).map(function(p){return Object.assign({},p)});
+ Array.prototype.forEach.call(document.querySelectorAll("#ph .pht"),function(x){var i=+x.dataset.i;if(list[i])list[i].tag=x.value});
+ Array.prototype.forEach.call(document.querySelectorAll("#ph .phcap"),function(x){var i=+x.dataset.i;if(list[i])list[i].caption=x.value.trim()});
+ return list;
+}
+function drawPhotos(){var d=S.dlg;if(!d||!$("#ph"))return;$("#ph").innerHTML=photoCards(d.job.photos||[]);$("#phn").textContent=(d.job.photos||[]).length}
+async function persistPhotos(){
+ var d=S.dlg;if(!d||d.draft)return;
+ var o=Object.assign({},d.job,{photos:d.job.photos||[]});
+ try{await Store.saveOrder(o)}catch(x){toast("写真の保存に失敗しました: "+(x.message||x.code))}
+}
+async function addPhotos(files){
+ var d=S.dlg;if(!d||d.draft)return;
+ files=files.filter(function(f){return /^image\//.test(f.type)||/\.(jpe?g|png|heic|webp)$/i.test(f.name)});
+ if(!files.length){toast("画像ファイルを選んでください");return}
+ d.job.photos=readPhotos();
+ if(d.job.photos.length+files.length>30){toast("写真は1案件30枚までです");return}
+ var ok=0,bad="";
+ for(var i=0;i<files.length;i++){
+  toast("写真を保存中… "+(i+1)+"/"+files.length);
+  try{
+   var img=await shrinkImage(files[i]),up=await Store.uploadPhoto(d.job.id,img);
+   d.job.photos.push(Object.assign({name:img.name,tag:"作業後",caption:"",at:new Date().toISOString()},up));ok++;
+  }catch(x){bad=x.message||String(x)}
+ }
+ drawPhotos();await persistPhotos();
+ toast(ok?ok+"枚の写真を追加しました"+(bad?"(失敗あり: "+bad+")":""):"写真を追加できませんでした: "+bad);
+}
+async function delPhoto(i){
+ var d=S.dlg;if(!d)return;var list=readPhotos(),p=list[i];if(!p)return;
+ list.splice(i,1);d.job.photos=list;drawPhotos();
+ try{await Store.deletePhoto(p)}catch(x){}
+ await persistPhotos();
+}
+// 作業完了報告書(画面で整えて、印刷またはPDF保存)
+function openReport(){
+ var d=S.dlg;if(!d)return;var o=Object.assign({},d.job);o.photos=readPhotos();d.job.photos=o.photos;
+ var box=$("#rpt");if(box)box.remove();
+ box=document.createElement("div");box.id="rpt";box.className="rpt";
+ var row=function(k,v){return '<tr><th>'+k+'</th><td>'+e(v||"")+'</td></tr>'};
+ var wd=o.doneDate||o.workDate||"";
+ box.innerHTML='<div class="bar"><span class="sub" style="color:#fff;margin-right:auto;align-self:center">文章は直接書き換えられます</span>'+
+  (S.flags.ai&&o.photos.length?'<button class="btn" data-a="rpai">写真から文章を作る(AI)</button>':"")+
+  '<button class="btn" data-a="rpsave">内容を保存</button><button class="btn pri" data-a="rpprint">印刷 / PDF保存</button><button class="btn" data-a="rpclose">閉じる</button></div>'+
+  '<div class="pg"><h1>作業完了報告書</h1>'+
+  '<table><tbody>'+row("宛先",AP.CLIENT)+row("提出元","株式会社三桜"+(o.staff?"　担当: "+o.staff:""))+row("提出日",today())+
+  row("店舗・物件名",(o.site||"")+(o.storeCode?"("+o.storeCode+")":""))+row("作業依頼番号",o.reqNo)+row("顧客案件番号",o.caseNo)+
+  row("作業名称",o.subject)+row("作業場所",o.deliveryTo)+row("作業日",wd)+'</tbody></table>'+
+  '<h3>作業内容</h3><div class="ed" id="rp-sum" contenteditable="true">'+e(o.reportText||o.detail||"")+'</div>'+
+  '<h3>作業写真</h3><div class="rg" id="rp-ph">'+reportPhotos(o.photos)+'</div>'+
+  '<h3>特記事項</h3><div class="ed" id="rp-note" contenteditable="true" style="min-height:44px">'+e(o.reportNote||"")+'</div></div>';
+ document.body.appendChild(box);
+}
+function reportPhotos(list){
+ return list.map(function(p,i){return '<figure><img src="'+e(photoSrc(p))+'" alt=""><figcaption><b>'+e(p.tag||"作業後")+'</b><span class="rpcap" data-i="'+i+'" contenteditable="true">'+e(p.caption||"")+'</span></figcaption></figure>'}).join("")||'<div style="grid-column:1/-1;color:#666">写真はありません</div>';
+}
+function readReport(){
+ var d=S.dlg,list=readPhotos();
+ Array.prototype.forEach.call(document.querySelectorAll("#rp-ph .rpcap"),function(x){var i=+x.dataset.i;if(list[i])list[i].caption=x.textContent.trim()});
+ return {photos:list,reportText:($("#rp-sum")||{}).innerText||"",reportNote:($("#rp-note")||{}).innerText||""};
+}
+async function saveReport(){
+ var d=S.dlg;if(!d)return;var r=readReport();
+ d.job=Object.assign({},d.job,r);
+ if(!d.draft){try{await Store.saveOrder(d.job);toast("報告書の内容を保存しました")}catch(x){toast("保存に失敗しました: "+(x.message||x.code))}}
+ drawPhotos();
+}
+async function reportAi(btn){
+ var d=S.dlg;if(!d)return;var r=readReport(),o=d.job;
+ var info={site:o.site||"",subject:o.subject||"",detail:o.detail||"",workDate:o.doneDate||o.workDate||""};
+ var photos=r.photos.slice(0,12);btn.disabled=true;var old=btn.textContent;btn.textContent="作成中…(数十秒かかります)";
+ try{
+  var out;
+  if(Store.mode==="server")out=await post("/api/report",{job:info,photos:photos.map(function(p){return {id:p.id}})});
+  else{
+   var imgs=[];for(var i=0;i<photos.length;i++){var b=await (await fetch(photoSrc(photos[i]))).blob();imgs.push(b)}
+   var prompt="上の写真は、設備の修繕・点検など現場作業の記録です。作業完了報告書に載せる内容を作ってください。\n物件: "+info.site+"\n作業名称: "+info.subject+"\n作業内容(依頼書): "+info.detail+"\n作業日: "+info.workDate+"\n\nルール: 写真から読み取れることだけを書く。見えないこと・推測は書かない。です・ます調。各コメントは40字以内。\n写真は上から順に番号1,2,3…。次のJSONだけを返す: {\"summary\":\"作業内容のまとめ(3〜5文)\",\"photos\":[{\"n\":1,\"tag\":\"作業前|作業中|作業後|その他\",\"caption\":\"写真の説明\"}]}";
+   var raw=await CAP.sample.json(prompt,{modelTier:"default",images:imgs});
+   out={summary:raw.summary,photos:(raw.photos||[]).map(function(x){var p=photos[(x.n||0)-1];return p?{id:p.id||p.asset,tag:x.tag,caption:x.caption}:null}).filter(Boolean)};
+  }
+  var list=r.photos;
+  (out.photos||[]).forEach(function(x){list.forEach(function(p){if((p.id||p.asset)===x.id){if(PTAGS.indexOf(x.tag)>=0)p.tag=x.tag;if(x.caption)p.caption=x.caption}})});
+  d.job=Object.assign({},d.job,{photos:list,reportText:out.summary||r.reportText,reportNote:r.reportNote});
+  openReport();toast("文章を作りました。内容を確認して直してください");
+ }catch(x){toast("AIで作れませんでした: "+(x.message||x.code||x))}
+ finally{if(btn.isConnected){btn.disabled=false;btn.textContent=old}}
+}
+function closeDlg(){S.dlg=null;$("#layer").innerHTML="";var rp=$("#rpt");if(rp)rp.remove()}
 function newJob(){
  var n=new Date().toISOString();
  openJob({id:rid(),no:"",kind:"work",quoteDue:"",workDate:"",doneDate:"",site:"",reqNo:"",caseNo:"",detail:"",status:0,source:"manual",createdAt:n,receivedAt:n,customer:AP.CLIENT,contact:"",email:"",tel:"",subject:"",items:[],deliveryDate:"",deliveryTo:"",amount:null,staff:"",note:"",urgent:false,needsReview:false,issues:[],history:[]},{draft:true});
@@ -1449,6 +1597,14 @@ document.addEventListener("click",async function(ev){
   case "flt":{var f={},kv=t.dataset.f.split(":");f[kv[0]]=kv[0]==="q"?decodeURIComponent(kv.slice(1).join(":")):kv.slice(1).join(":");go(t.dataset.go||"list",f);break}
   case "open":{var o=S.orders.filter(function(x){return x.id===t.dataset.id})[0];if(o)openJob(o);break}
   case "new":newJob();break;
+  case "phpick":{var pi=$("#phi");if(pi)pi.click();break}
+  case "phdel":delPhoto(+t.dataset.i);break;
+  case "phview":{var pl=readPhotos(),pp=pl[+t.dataset.i];if(pp)window.open(photoSrc(pp),"_blank","noopener");break}
+  case "report":openReport();break;
+  case "rpclose":{var rb=$("#rpt");if(rb)rb.remove();break}
+  case "rpsave":saveReport();break;
+  case "rpprint":{await saveReport();window.print();break}
+  case "rpai":reportAi(t);break;
   case "addrow":{var tb=$("#items tbody");tb.insertAdjacentHTML("beforeend",itemRow());break}
   case "delrow":{var tr=t.closest("tr");if(document.querySelectorAll("#items tbody tr").length>1)tr.remove();else{Array.prototype.forEach.call(tr.querySelectorAll("input"),function(i){i.value=""})}recalc();break}
   case "closedlg":S.queue=[];closeDlg();break;
@@ -1486,6 +1642,7 @@ document.addEventListener("change",function(ev){
  else if(t.id==="fsp"){S.f.sp=t.value;renderList()}
  else if(t.id==="fkind"){S.f.kind=t.value;renderList()}
  else if(t.id==="fi"){readFile(t.files[0]);t.value=""}
+ else if(t.id==="phi"){var fl3=Array.prototype.slice.call(t.files);t.value="";addPhotos(fl3)}
  else if(t.id==="fzi"){var fl=Array.prototype.slice.call(t.files);t.value="";importFiles(fl)}
  else if(t.id==="zpwkeep"){zpwSet(t.checked?($("#zpw")||{}).value||"":"")}
  else if(t.id==="bkf"){var f=t.files[0];if(!f)return;var fr=new FileReader();fr.onload=async function(){try{var n=await Store.importAll(JSON.parse(fr.result));await reload();toast(n+"件を読み込みました")}catch(x){toast("読み込めませんでした: "+x.message)}};fr.readAsText(f);t.value=""}
