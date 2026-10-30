@@ -675,7 +675,7 @@ async function importFiles(list,force){
 async function forceWork(k){var p=S.pending[k];if(!p)return;delete S.pending[k];try{var out=await registerWork(p.name,p.blob,p.w,p.ai,true);toast("登録しました: "+out.job.no);await reload(true);renderNav();renderLog()}catch(x){toast("登録できませんでした: "+(x.message||x.code))}}
 
 /* ---- Gmail(claude.ai のコネクタ経由) ---- */
-var GM_Q="newer_than:7d (from:alphapurchase.co.jp OR from:gravity-inc001.com)";
+var GM_Q="newer_than:7d (label:100_業者別-アルファパーチェス OR from:alphapurchase.co.jp OR from:gravity-inc001.com)";
 S.gm={q:"",list:null,busy:false,msg:""};
 function gmBox(){
  if(!CAP.mcp)return '<div class="sub">このページでGmailを使えません。メールは上の欄に貼り付けて登録してください。</div>';

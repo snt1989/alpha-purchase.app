@@ -6,6 +6,7 @@
 const { safeEq, body, redis } = require("./_lib");
 const { ingest, K } = require("./_ingest");
 const { processAttachments } = require("./_work");
+const { fetchLinkedPdfs } = require("./_link");
 
 module.exports = async (req, res) => {
   res.setHeader("Cache-Control", "no-store");
@@ -30,7 +31,14 @@ module.exports = async (req, res) => {
   const atts = (Array.isArray(b.attachments) ? b.attachments : []).slice(0, 10)
     .filter((a) => a && a.name && typeof a.b64 === "string" && /\.(zip|pdf)$/i.test(a.name))
     .map((a) => ({ name: String(a.name).slice(0, 200), data: new Uint8Array(Buffer.from(a.b64, "base64")) }));
+  let linkDiag = null;
   try {
+    // 添付がなく本文にダウンロードリンク(kintone)がある場合は、リンク先のPDFを取得して作業依頼書として読む
+    if (!atts.length && /mailer\.kintoneapp\.com/.test(mail.body)) {
+      const lk = await fetchLinkedPdfs(mail.body);
+      linkDiag = lk.diag;
+      lk.files.forEach((f) => atts.push(f));
+    }
     if (atts.length) {
       const pwTexts = (Array.isArray(b.pwTexts) ? b.pwTexts : []).slice(0, 6).map((t) => ({ subject: String((t && t.subject) || "").slice(0, 300), body: String((t && t.body) || "").slice(0, 8000) }));
       const results = await processAttachments(atts, pwTexts, { source: "gmail", mail: { from: mail.from, subject: mail.subject, date: mail.date, messageId: mail.messageId, body: mail.body.slice(0, 5000) } });
@@ -41,7 +49,7 @@ module.exports = async (req, res) => {
       if (!hasWork && !pwRetry && others.length) {
         const text = (mail.body + "\n\n" + others.map((r) => "【添付 " + r.file + "】\n" + r.text).join("\n\n")).slice(0, 30000);
         const r = await ingest(Object.assign({}, mail, { body: text }), { source: "gmail" });
-        return res.json({ ok: true, state: r.state, nos: (r.jobs || []).map((j) => j.no), results: results.map((x) => ({ file: x.file, state: x.state })) });
+        return res.json({ ok: true, state: r.state, nos: (r.jobs || []).map((j) => j.no), link: linkDiag || undefined, results: results.map((x) => ({ file: x.file, state: x.state })) });
       }
       results.forEach((r) => { delete r.text; });
       // 記録(取込ログに出す)
@@ -52,11 +60,11 @@ module.exports = async (req, res) => {
       await redis(["INCR", K.ver("mails")]);
       // パスワードが見つからない・読めない場合は 422(送信側はラベルを付けずに次回やり直す)
       const retry = results.some((r) => r.state === "error" && r.code === "no_password");
-      return res.status(retry ? 422 : 200).json({ ok: !retry, results });
+      return res.status(retry ? 422 : 200).json({ ok: !retry, results, link: linkDiag || undefined });
     }
     if (mail.body.trim().length < 5) return res.status(400).json({ ok: false, error: "body が空です" });
     const r = await ingest(mail, { source: "gmail" });
-    res.json({ ok: true, state: r.state, nos: (r.jobs || []).map((j) => j.no) });
+    res.json({ ok: true, state: r.state, nos: (r.jobs || []).map((j) => j.no), link: linkDiag || undefined });
   } catch (e) {
     res.status(500).json({ ok: false, error: String(e.message || e).slice(0, 200) }); // 500 なら送信側は「未処理」のままにして、次回やり直す
   }
