@@ -993,6 +993,13 @@ document.addEventListener("keydown",function(ev){
 },true);
 
 /* ---- サーバーの情報(設定画面) ---- */
+function fmtB(n){return n==null?"—":n>=1048576?(n/1048576).toFixed(1)+" MB":n>=1024?(n/1024).toFixed(0)+" KB":n+" B"}
+function storageView(st){
+ var lim=st.limitBytes,used=st.usedBytes!=null?st.usedBytes:st.appBytes,pct=lim?Math.min(100,used/lim*100):0,col=pct>=85?"var(--bad)":pct>=60?"var(--warn)":"var(--ok)";
+ return '<div><b>このアプリ '+fmtB(st.appBytes)+'</b> <span class="sub">(案件 '+fmtB(st.ordersBytes)+' ／ 取込ログ '+fmtB(st.mailsBytes)+' ／ PDF・写真 '+fmtB(st.filesBytes)+')</span></div>'+
+  (lim?'<div style="margin-top:6px;height:8px;border-radius:5px;background:var(--line);overflow:hidden"><div style="width:'+Math.max(pct,0.8).toFixed(1)+'%;height:100%;background:'+col+'"></div></div>'+
+  '<div class="sub" style="margin-top:3px">データベース全体 '+fmtB(used)+' / '+fmtB(lim)+'('+pct.toFixed(1)+'%)'+(st.shared?' ※他のアプリと共用':"")+(st.usedBytes==null?' ※全体の使用量は取得できなかったため、このアプリ分で表示':"")+'</div>':"");
+}
 function srvRow(k,v,ok){return '<tr><th>'+k+'</th><td>'+(ok===true?'<span class="tag" style="color:var(--ok);border-color:var(--ok)">OK</span> ':ok===false?'<span class="tag rv">要確認</span> ':"")+v+'</td></tr>'}
 function srvLocal(){
  return '<table class="srv"><tbody>'+srvRow("動作モード",S.mode==="artifact"?"公開ページ(Claude上・クラウド保存)":"お試しモード(このブラウザ内に保存)")+
@@ -1007,6 +1014,7 @@ async function loadSrv(){
   var ago="";if(r.inbound.lastAt){var m=Math.round((Date.now()-new Date(r.inbound.lastAt))/60000);ago=" ("+(m<1?"1分以内":m<90?m+"分前":m<2880?Math.round(m/60)+"時間前":Math.round(m/1440)+"日前")+")"}
   box.innerHTML='<table class="srv"><tbody>'+
    srvRow("データベース(Redis)",d.ok?"接続できました("+d.ms+"ms)":e(d.error||"接続できません"),d.ok)+
+   (r.storage?srvRow("使っている容量",storageView(r.storage)):"")+
    (d.ok?srvRow("保存件数","案件 "+d.orders+" 件 ／ 取込ログ "+d.mails+" 件 ／ 保存ファイル(PDF・写真) "+d.files+" 件"):"")+
    srvRow("ログインパスワード",c.password?"設定済み":"未設定",c.password)+
    srvRow("ログインの署名鍵(SESSION_SECRET)",c.sessionSecret?"設定済み":"未設定(パスワードから生成)",null)+

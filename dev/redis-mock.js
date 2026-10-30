@@ -16,6 +16,8 @@ module.exports = function createMock() {
       case "HEXISTS": return kv.has(k) && kv.get(k).has(a) ? 1 : 0;
       case "HKEYS": return kv.has(k) ? [...kv.get(k).keys()] : [];
       case "HGETALL": { const out = []; if (kv.has(k)) kv.get(k).forEach((v, f) => out.push(f, v)); return out; }
+      case "STRLEN": return kv.has(k) ? Buffer.byteLength(String(kv.get(k))) : 0;
+      case "INFO": return "# Memory\r\nused_memory:123456\r\nmaxmemory:268435456\r\n";
       default: throw new Error("mock: unsupported " + cmd);
     }
   }

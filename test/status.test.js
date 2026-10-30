@@ -13,6 +13,7 @@ const status = require("../api/status.js"), auth = require("../api/auth.js");
   const C = { cookie: (await call(auth, { body: { op: "login", password: "pw-for-test" } })).headers["set-cookie"].split(";")[0], host: "example.test" };
   const r = (await call(status, { headers: C })).json;
   assert.ok(r.db.ok && r.db.orders === 0 && r.config.password && r.config.inboundToken && r.config.sessionSecret && !r.config.ai);
+  assert.ok(r.storage && r.storage.appBytes === 0 && r.storage.usedBytes === 123456 && r.storage.limitBytes === 268435456);
   assert.strictEqual(r.inbound.endpoint, "https://example.test/api/inbound");
   const txt = JSON.stringify(r);
   ["pw-for-test", "inbound-token-0123456789", "secret-value-xyz-123"].forEach((s) => assert.ok(!txt.includes(s), "秘密の値が含まれています"));

@@ -30,8 +30,21 @@ module.exports = async (req, res) => {
   if (out.runtime.host) out.inbound.endpoint = proto + "://" + out.runtime.host + "/api/inbound";
   const t0 = Date.now();
   try {
-    const r = await pipeline([["HKEYS", "ap:orders"], ["HGETALL", "ap:mails"], ["HKEYS", "ap:fmeta"]]);
-    out.db = { ok: true, ms: Date.now() - t0, orders: (r[0] || []).length, files: (r[2] || []).length, mails: 0 };
+    const r = await pipeline([["HGETALL", "ap:orders"], ["HGETALL", "ap:mails"], ["HKEYS", "ap:fmeta"]]);
+    const bytes = (flat) => { let n = 0; for (let i = 0; i < flat.length; i++) n += Buffer.byteLength(String(flat[i])); return n; };
+    const oflat = r[0] || [], fids = r[2] || [];
+    out.db = { ok: true, ms: Date.now() - t0, orders: Math.floor(oflat.length / 2), files: fids.length, mails: 0 };
+    const sizes = { orders: bytes(oflat), mails: bytes(r[1] || []), files: 0 };
+    if (fids.length) {
+      try { const sl = await pipeline(fids.slice(0, 2000).map((id) => ["STRLEN", "ap:file:" + id])); sizes.files = sl.reduce((a, x) => a + (Number(x) || 0), 0); } catch (e) {}
+    }
+    out.storage = { appBytes: sizes.orders + sizes.mails + sizes.files, ordersBytes: sizes.orders, mailsBytes: sizes.mails, filesBytes: sizes.files, usedBytes: null, limitBytes: null, shared: true };
+    try {
+      const info = String((await pipeline([["INFO"]]))[0] || "");
+      const g = (k) => { const m = info.match(new RegExp("(?:^|\\n)" + k + ":(\\d+)")); return m ? Number(m[1]) : null; };
+      out.storage.usedBytes = g("used_memory"); out.storage.limitBytes = g("maxmemory") || null;
+    } catch (e) {}
+    if (!out.storage.limitBytes) out.storage.limitBytes = (Number(process.env.REDIS_LIMIT_MB) || 256) * 1048576; // Upstash 無料プランの目安
     const flat = r[1] || [];
     let last = null;
     for (let i = 0; i + 1 < flat.length; i += 2) {
