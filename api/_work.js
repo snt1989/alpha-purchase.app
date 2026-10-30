@@ -100,6 +100,32 @@ function addRel(o, mail) {
   o.mails = (o.mails || []).concat([{ key, subject: mail.subject || "", from: mail.from || "", date: mail.date || "", url }]);
 }
 
+// メール(件名・本文)から関連する既存案件を探す: 作業依頼番号 → 顧客案件番号(8桁) → 店舗名が1件だけ一致
+function findCaseForMail(all, mail) {
+  const live = all.filter((o) => o.status !== 8);
+  const text = String(mail.subject || "") + "\n" + String(mail.body || "").slice(0, 3000);
+  const reqs = text.match(/\d{4}-\d{5}-\d{4}/g) || [];
+  for (const r of reqs) { const o = live.find((x) => x.reqNo === r); if (o) return o; }
+  const nums = text.match(/(?:^|[^0-9])(\d{8})(?:[^0-9]|$)/g) || [];
+  for (const n of nums) { const d = n.replace(/\D/g, ""); const o = live.find((x) => x.caseNo === d || String(x.subject || "").indexOf(d) >= 0); if (o) return o; }
+  const subj = nrm(String(mail.subject || "").replace(/【[^】]*】/g, ""));
+  if (subj.length >= 6) {
+    const c = live.filter((o) => [o.site, o.subject].some((t) => { const m = nrm(t); return m && lcs(m, subj) >= 6; }));
+    if (c.length === 1) return c[0];
+  }
+  return null;
+}
+async function relateMail(mail) {
+  const flat = (await redis(["HGETALL", K.orders])) || [], all = [];
+  for (let i = 0; i + 1 < flat.length; i += 2) { try { all.push(JSON.parse(flat[i + 1])); } catch (e) {} }
+  const o = findCaseForMail(all, mail);
+  if (!o) return null;
+  addRel(o, mail);
+  o.history = (o.history || []).concat({ at: new Date().toISOString(), text: "関連メールを自動で紐づけ: " + (mail.subject || "") });
+  await pipeline([["HSET", K.orders, o.id, JSON.stringify(o)], ["INCR", K.ver("orders")]]);
+  return o;
+}
+
 // 作業依頼書と作業完了報告書が1つのPDFに合わさっている場合、種類ごとのPDFに分ける
 async function splitCombined(file) {
   try {
@@ -286,4 +312,4 @@ async function processAttachments(attachments, pwTexts, ctx) {
   return results;
 }
 
-module.exports = { splitCombined, unzipPdfs, openZip, pdfText, registerWork, registerReport, processAttachments };
+module.exports = { relateMail, findCaseForMail, splitCombined, unzipPdfs, openZip, pdfText, registerWork, registerReport, processAttachments };

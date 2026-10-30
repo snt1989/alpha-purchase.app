@@ -76,6 +76,11 @@ async function ingest(mail, opts) {
     }
     if (!ex.isOrder) {
       if (!opts.force) {
+        if (!opts.dryRun) {
+          // 既存の案件に関係するメールなら、未処理にせず関連メールとして案件に紐づける
+          let rel = null; try { rel = await require("./_work").relateMail(mail); } catch (e) {}
+          if (rel) { await redis(["HSET", K.mails, key, JSON.stringify({ key, at: now, state: "linked", from: mail.from, subject: mail.subject, date: mail.date || "", url: gmUrl(mail.messageId), jobs: [{ id: rel.id, no: rel.no }] })]); return { state: "linked", jobs: [], key, ai: usedAi, linked: rel.no }; }
+        }
         if (!opts.dryRun) await redis(["HSET", K.mails, key, JSON.stringify({ key, at: now, state: "skipped", from: mail.from, subject: mail.subject, date: mail.date || "", url: gmUrl(mail.messageId), reason: "受注依頼ではないと判定" })]);
         return { state: "skipped", jobs: [], key, ai: usedAi };
       }

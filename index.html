@@ -860,7 +860,7 @@ async function loadOrph(){if(S.mode!=="server"){S.orph=[];return}try{var r=await
 /* ---- 未処理メール: 自動で案件にできなかったメール(受注依頼ではないと判定・読み取り失敗) ---- */
 function pgMail(){
  var L=mailTodo().sort(function(a,b){return String(b.date||b.at).localeCompare(String(a.date||a.at))});
- var h='<div class="pghead"><h2 class="pt">未処理メール</h2></div><div class="sub" style="margin-bottom:10px">自動で案件にできなかったアルファパーチェスからのメールです。内容を確認して、案件として登録するか「対応済みにする」を押してください。</div>';
+ var h='<div class="pghead"><h2 class="pt">未処理メール</h2><div class="pgact"><button class="btn out" data-a="mailauto">関連する案件に自動で紐づけ</button></div></div><div class="sub" style="margin-bottom:10px">自動で案件にできなかったアルファパーチェスからのメールです。内容を確認して、案件として登録するか「対応済みにする」を押してください。</div>';
  if(!L.length)return h+'<div class="panel empty">未処理のメールはありません</div>';
  return h+'<div class="summary-line" style="margin-bottom:8px"><b>'+L.length+'</b> 件</div>'+L.map(function(m){
   return '<div class="card2"><div style="font-weight:700;overflow-wrap:anywhere">'+e(m.subject||"(件名なし)")+'</div>'+
@@ -960,6 +960,24 @@ function mailsSection(o){
  h+='</div>';
  if(cand.length)h+='<div class="row2" style="gap:8px;flex-wrap:wrap"><select id="relsel" style="min-width:0;flex:1"><option value="">関連メールを選んで追加</option>'+cand.map(function(m){return '<option value="'+e(m.key)+'">'+e(String(m.date||m.at||"").slice(0,10)+" "+(m.subject||""))+'</option>'}).join("")+'</select><button class="btn sm" data-a="mladd">追加</button></div>';
  return h;
+}
+/* 未処理メールのうち、既存の案件に関係するもの(作業依頼番号・顧客案件番号・店舗名)を自動で関連メールにする */
+function caseForMail(m){
+ var live=S.orders.filter(function(o){return o.status!==8}),text=String(m.subject||"")+"\n"+String(m.body||""),i,x;
+ var reqs=text.match(/\d{4}-\d{5}-\d{4}/g)||[];for(i=0;i<reqs.length;i++){x=live.filter(function(o){return o.reqNo===reqs[i]})[0];if(x)return x}
+ var nums=text.match(/(?:^|[^0-9])(\d{8})(?:[^0-9]|$)/g)||[];for(i=0;i<nums.length;i++){var d=nums[i].replace(/\D/g,"");x=live.filter(function(o){return o.caseNo===d||String(o.subject||"").indexOf(d)>=0})[0];if(x)return x}
+ var sj=aNrm(String(m.subject||"").replace(/【[^】]*】/g,""));
+ if(sj.length>=6){var c=live.filter(function(o){return [o.site,o.subject].some(function(t){var n=aNrm(t);return n&&aLcs(n,sj)>=6})});if(c.length===1)return c[0]}
+ return null;
+}
+async function autoLinkMails(quiet){
+ var n=0,todo=mailTodo();
+ for(var i=0;i<todo.length;i++){var m=todo[i],o=caseForMail(m);if(!o)continue;
+  linkMail(o,m);m.was=m.state;m.state="done";m.doneAt=new Date().toISOString();
+  try{await Store.saveOrder(o);await Store.saveMail(m);n++}catch(x){m.state=m.was}}
+ if(n){await reload(true);render()}
+ if(!quiet)toast(n?n+" 件を関連する案件に紐づけました":"紐づけられるメールは見つかりませんでした");
+ return n;
 }
 function linkMail(o,m){var rec={key:m.key,subject:m.subject||"",from:m.from||"",date:m.date||m.at||"",url:m.url||""};o.mails=(o.mails||[]).filter(function(x){return x.key!==m.key}).concat([rec]);o.history=(o.history||[]).concat({at:new Date().toISOString(),text:"関連メールを紐づけ: "+(m.subject||"")})}
 function docsSection(o){
@@ -1440,6 +1458,7 @@ document.addEventListener("click",async function(ev){
    S.settings.looseDocs=(S.settings.looseDocs||[]).concat(gone.map(function(f,i){return {id:"ld"+Date.now()+i,name:f.name||ul,url:f.url||"",kind:uk,label:ul,fromNo:uo.no,fromSite:title(uo),at:new Date().toISOString()}}));
    try{await Store.saveOrder(uo);await saveSettings();var wasDlg=!!S.dlg;if(wasDlg)closeDlg();await reload(true);render();toast(ul+"の紐づけを解除しました(「書類の確認」の未紐づけに残ります)");if(wasDlg){var nj=S.orders.filter(function(x){return x.id===uo.id})[0];if(nj)openJob(nj)}}catch(x){toast("解除に失敗しました: "+(x.message||x.code))}
    break}
+  case "mailauto":await autoLinkMails();break;
   case "mladd":{var rs=$("#relsel"),rm=rs&&(S.mails||[]).filter(function(x){return x.key===rs.value})[0],ro=S.dlg&&S.dlg.job;if(!rm||!ro)break;
    linkMail(ro,rm);try{await Store.saveOrder(ro);var rid2=ro.id;closeDlg();await reload(true);render();var nj2=S.orders.filter(function(x){return x.id===rid2})[0];if(nj2)openJob(nj2);toast("関連メールを紐づけました")}catch(x){toast("保存に失敗しました: "+(x.message||x.code))}break}
   case "mlunlink":{var ro2=S.dlg&&S.dlg.job;if(!ro2)break;ro2.mails=(ro2.mails||[]).filter(function(x){return x.key!==t.dataset.k});
