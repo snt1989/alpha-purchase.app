@@ -1346,6 +1346,22 @@ function pgCust(){
   L.map(function(c){return '<tr class="row" data-a="flt" data-f="q:'+e(encodeURIComponent(c.name))+'" data-go="list"><td class="rt0" data-l="取引先"><b>'+e(c.name)+'</b></td><td data-l="連絡先"><div>'+e(c.contact)+'</div><div class="sub">'+e([c.tel,c.email].filter(Boolean).join(" / "))+'</div></td><td class="num" data-l="受注件数">'+c.n+'</td><td class="num" data-l="進行中">'+c.open+'</td><td class="num" data-l="累計">'+yen(c.amt)+'</td><td data-l="最終受信">'+ymdj(c.last)+'</td></tr>'}).join("")+'</tbody></table></div>';
 }
 
+/* ---- アルファパーチェス以外の差出人から自動登録された案件(掃除用) ---- */
+var AP_FROM=/alphapurchase\.co\.jp|gravity-inc001\.com/i;
+function strays(){
+ var byKey={};S.orders.forEach(function(o){byKey[o.id]=o;if(o.no)byKey["#"+o.no]=o});
+ var out={};
+ (S.mails||[]).forEach(function(m){
+  if(!m||AP_FROM.test(m.from||"")||(m.state!=="registered"&&m.state!=="duplicate"))return;
+  (m.jobs||[]).forEach(function(j){var o=byKey[j.id]||byKey["#"+j.no];if(o&&o.source==="gmail"&&!out[o.id])out[o.id]={o:o,from:m.from||"",subject:m.subject||""}});
+ });
+ return Object.keys(out).map(function(k){return out[k]});
+}
+function strayCard(){
+ var L=strays();
+ return '<div class="card2"><h3>アルファパーチェス以外のメールから登録された案件</h3><div class="sub" style="margin-bottom:8px">差出人が alphapurchase.co.jp / gravity-inc001.com 以外のGmailから自動登録された案件です。関係ないものを選んで削除できます。</div>'+
+  (L.length?'<div class="gml">'+L.map(function(x){return '<label><input type="checkbox" class="stc" data-id="'+e(x.o.id)+'" checked><span style="min-width:0"><div class="s">'+e(x.o.no)+' ／ '+e(x.subject||x.o.subject||"(件名なし)")+'</div><div class="f">'+e(x.from)+'</div></span><span></span></label>'}).join("")+'</div><div class="row2" style="margin-top:10px"><button class="btn danger" data-a="straydel">チェックした案件を削除</button><span class="sub">'+L.length+' 件</span></div>':'<div class="empty">該当する案件はありません</div>')+'</div>';
+}
 function pgSet(){
  var s=S.settings,own=(s.own&&s.own.length?s.own:AP.OWN_DEFAULT);
  var h='<div class="pghead"><h2 class="pt">設定</h2></div>';
@@ -1354,6 +1370,7 @@ function pgSet(){
   '<input type="text" id="ns" placeholder="名前を追加" style="width:160px"><button class="btn sm" data-a="addstaff">追加</button></div></div>';
  h+='<div class="card2"><h3>自社名(取引先として扱わない名前)</h3><div class="sub" style="margin-bottom:8px">メールの宛先に書かれる自社名です。取引先と間違えないように使います(1行に1つ)。</div>'+
   '<textarea id="own" rows="4">'+e(own.join("\n"))+'</textarea><div style="margin-top:8px"><button class="btn sm pri" data-a="saveown">保存</button></div></div>';
+ h+=strayCard();
  h+='<div class="card2"><h3>バックアップ</h3><div class="row2"><button class="btn" data-a="bkexp">データを書き出す(JSON)</button><button class="btn" data-a="bkimp">書き出したデータを読み込む</button><input type="file" id="bkf" accept=".json,application/json" hidden></div></div>';
  h+='<div class="card2"><div class="acts"><h3 style="margin:0">サーバーの情報</h3>'+(S.mode==="server"?'<button class="btn sm" data-a="srvreload">再確認</button>':"")+'</div><div id="srv" style="margin-top:8px">'+(S.mode==="server"?'<div class="sub">確認しています…</div>':srvLocal())+'</div></div>';
  if(S.mode==="server"){setTimeout(loadSrv,0);h+='<div class="card2"><details><summary><b>Gmail連携の設定コード(設定済みなので、通常は見る必要はありません)</b></summary><div style="margin-top:8px">'+autoBox()+'</div></details></div>'}
@@ -1769,6 +1786,12 @@ document.addEventListener("click",async function(ev){
   case "discard":S.queue=[];closeDlg();toast("破棄しました(登録していません)");break;
   case "savejob":await saveJob();break;
   case "advance":{var sel=$("#f-status"),v=Number(sel.value);if(v<7){sel.value=v+1;toast("状態を「"+ST[v+1]+"」にしました。保存で確定します")}break}
+  case "straydel":{
+   var ids=Array.prototype.filter.call(document.querySelectorAll(".stc"),function(c){return c.checked}).map(function(c){return c.dataset.id});
+   if(!ids.length){toast("削除する案件をチェックしてください");break}
+   if(t.dataset.armed!=="1"){t.dataset.armed="1";t.textContent="もう一度押すと "+ids.length+" 件を削除";t.classList.add("pri");setTimeout(function(){if(t.isConnected){t.dataset.armed="";t.textContent="チェックした案件を削除";t.classList.remove("pri")}},4000);break}
+   var n=0;for(var i=0;i<ids.length;i++){try{await Store.delOrder(ids[i]);n++}catch(x){}}
+   await reload(true);render();toast(n+" 件削除しました");break}
   case "deljob":if(t.dataset.armed!=="1"){t.dataset.armed="1";t.textContent="もう一度押すと削除";t.classList.add("pri");setTimeout(function(){if(t.isConnected){t.dataset.armed="";t.textContent="削除";t.classList.remove("pri")}},4000);break}
    try{await Store.delOrder(S.dlg.job.id);closeDlg();await reload();toast("削除しました")}catch(x){toast("削除に失敗しました: "+(x.message||x.code))}break;
   case "ingest":await doIngest(false);break;
