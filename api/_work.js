@@ -80,6 +80,17 @@ async function pdfText(bytes, asPages) {
   return asPages ? pages : out.join("\n");
 }
 
+// メールの本文だけで先に登録された案件(作業依頼番号が未確定で、書類もまだ無い)
+const preMail = (o) => !o.reqNo && !o.provisional && !(o.files || []).length;
+const nrm = (t) => String(t || "").replace(/[\s　【】\[\]()（）]/g, "").replace(/\d{6,}/g, "");
+function lcs(a, b) { let best = 0, prev = new Array(b.length + 1).fill(0); for (let i = 1; i <= a.length; i++) { const cur = [0]; for (let j = 1; j <= b.length; j++) { cur[j] = a[i - 1] === b[j - 1] ? prev[j - 1] + 1 : 0; if (cur[j] > best) best = cur[j]; } prev = cur; } return best; }
+// 店舗名が一致する「書類待ちの案件」が1件だけなら、それに結びつける
+function byStore(all, name) {
+  const n = nrm(name); if (n.length < 3) return null;
+  const c = all.filter((o) => preMail(o) && o.status !== 8 && [o.site, o.subject].some((t) => { const m = nrm(t); return m && lcs(m, n) >= 6; }));
+  return c.length === 1 ? c[0] : null;
+}
+
 // 作業依頼書と作業完了報告書が1つのPDFに合わさっている場合、種類ごとのPDFに分ける
 async function splitCombined(file) {
   try {
@@ -121,7 +132,8 @@ async function registerWork(w, file, ctx) {
   // 作業完了報告書から仮登録された案件(provisional)や、メール本文だけで先に登録された案件(PDF待ち)があれば、新規にせずそこへ内容を反映する
   let target = null;
   if (w.reqNo) target = all.find((o) => o.provisional && o.reqNo === w.reqNo) || null;
-  if (!target && w.caseNo) target = all.find((o) => !o.reqNo && o.pdfLink && (o.caseNo === w.caseNo || String(o.subject || "").indexOf(w.caseNo) >= 0)) || null;
+  if (!target && w.caseNo) target = all.find((o) => preMail(o) && (o.caseNo === w.caseNo || String(o.subject || "").indexOf(w.caseNo) >= 0)) || null;
+  if (!target) target = byStore(all, w.site || w.property);
   if (!target && w.reqNo) { const dup = all.find((o) => o.reqNo === w.reqNo); if (dup) return { state: "duplicate", job: dup }; }
   const now0 = new Date().toISOString();
   const now = now0;
@@ -161,7 +173,7 @@ async function registerReport(rep, file, ctx) {
   const flat = (await redis(["HGETALL", K.orders])) || [];
   const all = [];
   for (let i = 0; i + 1 < flat.length; i += 2) { try { all.push(JSON.parse(flat[i + 1])); } catch (e) {} }
-  let o = all.find((x) => rep.reqNo && x.reqNo === rep.reqNo) || all.find((x) => rep.caseNo && x.caseNo === rep.caseNo) || all.find((x) => rep.caseNo && !x.reqNo && x.pdfLink && String(x.subject || "").indexOf(rep.caseNo) >= 0) || null;
+  let o = all.find((x) => rep.reqNo && x.reqNo === rep.reqNo) || all.find((x) => rep.caseNo && x.caseNo === rep.caseNo) || all.find((x) => rep.caseNo && preMail(x) && String(x.subject || "").indexOf(rep.caseNo) >= 0) || byStore(all, rep.property) || null;
   const now = new Date().toISOString();
   let created = false;
   if (!o) {
