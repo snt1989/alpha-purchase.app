@@ -15,6 +15,13 @@ module.exports = async (req, res) => {
   const given = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "");
   if (!given || !safeEq(given, tok)) return res.status(401).json({ ok: false, error: "unauthorized" });
   const b = body(req);
+  // 連携の生存確認(Apps Script が実行のたびに送る。メールが0件でもエラーでも届く)
+  if (b.heartbeat) {
+    const n = (x) => Math.max(0, Math.min(100000, Number(x) || 0));
+    const hb = { at: new Date().toISOString(), ok: b.ok !== false, error: String(b.error || "").slice(0, 300), scanned: n(b.scanned), sent: n(b.sent), pending: n(b.pending) };
+    try { await redis(["SET", "ap:heartbeat", JSON.stringify(hb)]); return res.json({ ok: true }); }
+    catch (e) { return res.status(500).json({ ok: false, error: String(e.message || e).slice(0, 200) }); }
+  }
   const mail = { from: String(b.from || ""), subject: String(b.subject || ""), date: String(b.date || ""), messageId: String(b.messageId || ""), body: String(b.body || "") };
   const atts = (Array.isArray(b.attachments) ? b.attachments : []).slice(0, 10)
     .filter((a) => a && a.name && typeof a.b64 === "string" && /\.(zip|pdf)$/i.test(a.name))

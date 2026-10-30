@@ -1,13 +1,16 @@
 // サーバーの状態(設定画面の「サーバーの情報」用)。ログインが必要。秘密の値は返さず、設定済みかどうかだけ返す。
-const { authed, pipeline } = require("./_lib");
+const { authed, pipeline, body } = require("./_lib");
 
 const set = (k) => !!process.env[k];
 
 module.exports = async (req, res) => {
   res.setHeader("Cache-Control", "no-store");
   if (!authed(req)) return res.status(401).json({ error: { code: "not_granted", message: "ログインが必要です" } });
+  const hbGet = async () => { try { const v = await pipeline([["GET", "ap:heartbeat"]]); return v[0] ? JSON.parse(v[0]) : null; } catch (e) { return null; } };
+  if (body(req).light) return res.json({ at: new Date().toISOString(), heartbeat: await hbGet() }); // 画面の「Gmail連携」の印用(軽い)
   const out = {
     at: new Date().toISOString(),
+    heartbeat: await hbGet(),
     runtime: {
       node: process.version,
       region: process.env.VERCEL_REGION || "",

@@ -7,10 +7,28 @@ const QUERY = 'in:inbox newer_than:3d -label:AP取込済 (filename:zip OR filena
 const DONE_LABEL = 'AP取込済';
 
 function importOrders() {
+  const stat = { ok: true, error: '', scanned: 0, sent: 0, pending: 0 };
+  try {
+    run_(stat);
+  } catch (e) {
+    stat.ok = false; stat.error = String((e && e.message) || e).slice(0, 300);
+    console.log('importOrders error: ' + stat.error);
+  }
+  // 画面の「Gmail連携」の印用: 実行のたびに結果を知らせる(メールが0件でも、エラーでも送る)
+  try {
+    UrlFetchApp.fetch(ENDPOINT, {
+      method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+      headers: { Authorization: 'Bearer ' + TOKEN }, payload: JSON.stringify({ heartbeat: true, ok: stat.ok, error: stat.error, scanned: stat.scanned, sent: stat.sent, pending: stat.pending })
+    });
+  } catch (e) { console.log('heartbeat failed: ' + e); }
+}
+
+function run_(stat) {
   const done = GmailApp.getUserLabelByName(DONE_LABEL) || GmailApp.createLabel(DONE_LABEL);
   const me = Session.getActiveUser().getEmail();
   GmailApp.search(QUERY, 0, 20).forEach(function (th) {
     let ok = true;
+    stat.scanned++;
     th.getMessages().forEach(function (m) {
       if (m.isInTrash() || (me && m.getFrom().indexOf(me) >= 0)) return;
       const body = m.getPlainBody() || '';
@@ -28,7 +46,8 @@ function importOrders() {
       });
       const code = res.getResponseCode();
       // 422 = ZIPのパスワードがまだ見つからない(パスワードのメールが後から届くことがある)→ 次回やり直す
-      if (code !== 200) { ok = false; console.log(m.getSubject() + ' : ' + code + ' ' + res.getContentText().slice(0, 300)); }
+      if (code !== 200) { ok = false; stat.pending++; console.log(m.getSubject() + ' : ' + code + ' ' + res.getContentText().slice(0, 300)); }
+      else stat.sent++;
     });
     if (ok) th.addLabel(done);
   });

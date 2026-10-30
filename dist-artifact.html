@@ -145,6 +145,14 @@ details summary{cursor:pointer;font-weight:700;font-size:13px}
 .srv td{padding:7px 0;vertical-align:top;border-bottom:1px dashed var(--line);word-break:break-all}
 .srv code{background:var(--bg);padding:1px 5px;border-radius:4px;font-size:12px}
 @media (max-width:600px){.srv th{width:40%}}
+.gm{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;padding:2px 10px;font-size:12px;white-space:nowrap;color:var(--muted);background:var(--surface)}
+.gm i{width:9px;height:9px;border-radius:50%;background:#9a9aa2;display:inline-block}
+.gm.ok{color:var(--ok);border-color:var(--ok)}.gm.ok i{background:var(--ok);animation:gmp 2.4s ease-in-out infinite}
+.gm.warn{color:var(--warn);border-color:var(--warn)}.gm.warn i{background:var(--warn)}
+.gm.bad{color:var(--bad);border-color:var(--bad)}.gm.bad i{background:var(--bad)}
+.sidefoot .gm{background:transparent;margin-bottom:8px;font-size:12px}
+@keyframes gmp{0%,100%{box-shadow:0 0 0 0 transparent}50%{box-shadow:0 0 0 4px #1d7a3a33}}
+@media (prefers-reduced-motion:reduce){.gm.ok i{animation:none}}
 .rpt{position:fixed;inset:0;z-index:80;background:#0008;overflow:auto;padding:14px}
 .rpt .bar{max-width:820px;margin:0 auto 10px;display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 .rpt .pg{max-width:820px;margin:0 auto;background:#fff;color:#111;padding:28px 32px;border-radius:6px;font-size:13.5px;line-height:1.6}
@@ -202,7 +210,7 @@ details summary{cursor:pointer;font-weight:700;font-size:13px}
 <div class="app">
  <aside class="side" id="side"></aside>
  <div class="mainwrap">
-  <div class="topbar"><img class="tlogo" id="tlogo" alt="Alpha Purchase"><b id="ttl" style="font-family:var(--f-head);font-size:16px"></b><span class="sp"></span><span id="modechip"></span></div>
+  <div class="topbar"><img class="tlogo" id="tlogo" alt="Alpha Purchase"><b id="ttl" style="font-family:var(--f-head);font-size:16px"></b><span class="sp"></span><span id="gmchip"></span><span id="modechip"></span></div>
   <main id="main"></main>
  </div>
 </div>
@@ -996,9 +1004,10 @@ function badge(tab){if(tab==="list"){var n=S.orders.filter(function(o){return o.
 function renderNav(){
  $("#side").innerHTML='<div class="brand"><span class="plate"><img src="'+LOGO+'" alt="Alpha Purchase"></span><div class="nm">受注ナビ<small>SANOH × ALPHA PURCHASE</small></div></div>'+
   NAV.map(function(n){return '<button class="nv" data-a="tab" data-t="'+n[0]+'"'+(S.tab===n[0]?' aria-current="page"':"")+'>'+ic(n[2])+'<span>'+n[1]+'</span>'+badge(n[0])+'</button>'}).join("")+
-  '<div class="sidefoot">'+(S.mode==="server"?"共有データ(サーバー保存)":S.mode==="artifact"?"共有データ(クラウド保存)":"お試しモード(このブラウザ内に保存)")+'</div>';
+  '<div class="sidefoot">'+(S.mode==="server"?'<div id="gmside"></div>':"")+(S.mode==="server"?"共有データ(サーバー保存)":S.mode==="artifact"?"共有データ(クラウド保存)":"お試しモード(このブラウザ内に保存)")+'</div>';
  $("#bnav").innerHTML=NAV.filter(function(n){return n[0]!=="cust"}).map(function(n){return '<button data-a="tab" data-t="'+n[0]+'"'+(S.tab===n[0]?' aria-current="page"':"")+'>'+ic(n[2])+n[1]+badge(n[0])+'</button>'}).join("");
  var tl=$("#tlogo");if(tl&&!tl.src)tl.src=LOGO;
+ drawGm();
  $("#ttl").textContent=(NAV.filter(function(n){return n[0]===S.tab})[0]||[])[1]||"";
  $("#modechip").innerHTML='<span class="chipst'+(S.flags.ai?" on":"")+'" title="'+(S.flags.ai?"Claude(AI)でメールを読み取ります":"ルールで読み取ります(精度は下がります)")+'">'+(S.flags.ai?"AI解析 有効":"簡易解析")+'</span>';
 }
@@ -1025,7 +1034,7 @@ function pgHome(){
  var todo=O.filter(function(o){return o.status!==8&&(o.status<=1||isLate(o)||isSoon(o)||(o.needsReview&&o.status<=3))}).sort(function(a,b){
   return (isLate(b)-isLate(a))||((b.urgent?1:0)-(a.urgent?1:0))||String(dueOf(a)||"9999").localeCompare(String(dueOf(b)||"9999"))}).slice(0,8);
  var cnt=ST.map(function(s,i){return O.filter(function(o){return o.status===i}).length});
- var h='<div class="pghead"><h2 class="pt">ホーム</h2><div class="pgact"><button class="btn pri" data-a="tab" data-t="import">依頼を取り込む</button><button class="btn" data-a="new">手入力で登録</button></div></div>';
+ var h='<div class="pghead"><h2 class="pt">ホーム</h2><div class="pgact">'+(S.mode==="server"?"":'<button class="btn pri" data-a="tab" data-t="import">依頼を取り込む</button>')+'<button class="btn" data-a="new">手入力で登録</button></div></div>';
  if(S.mode==="local")h+='<div class="banner info">お試しモードです。データはこのブラウザの中にだけ保存されます。サーバー(Vercel)に置くと、メールの自動取込・AI解析・全員での共有が使えます(設定の README を参照)。</div>';
  h+='<div class="grid alerts">'+
   '<button class="alert'+(nNew?" warm":"")+'" data-a="flt" data-f="status:0"><b>'+nNew+'</b><span>依頼受付(未着手)</span></button>'+
@@ -1347,7 +1356,7 @@ function pgSet(){
   '<textarea id="own" rows="4">'+e(own.join("\n"))+'</textarea><div style="margin-top:8px"><button class="btn sm pri" data-a="saveown">保存</button></div></div>';
  h+='<div class="card2"><h3>バックアップ</h3><div class="row2"><button class="btn" data-a="bkexp">データを書き出す(JSON)</button><button class="btn" data-a="bkimp">書き出したデータを読み込む</button><input type="file" id="bkf" accept=".json,application/json" hidden></div></div>';
  h+='<div class="card2"><div class="acts"><h3 style="margin:0">サーバーの情報</h3>'+(S.mode==="server"?'<button class="btn sm" data-a="srvreload">再確認</button>':"")+'</div><div id="srv" style="margin-top:8px">'+(S.mode==="server"?'<div class="sub">確認しています…</div>':srvLocal())+'</div></div>';
- if(S.mode==="server")setTimeout(loadSrv,0);
+ if(S.mode==="server"){setTimeout(loadSrv,0);h+='<div class="card2"><details><summary><b>Gmail連携の設定コード(設定済みなので、通常は見る必要はありません)</b></summary><div style="margin-top:8px">'+autoBox()+'</div></details></div>'}
  if(S.mode==="server")h+='<div class="card2"><h3>アカウント</h3><button class="btn" data-a="logout">ログアウト</button></div>';
  return h;
 }
@@ -1619,6 +1628,7 @@ async function loadSrv(){
    (d.ok?srvRow("保存件数","案件 "+d.orders+" 件 ／ 取込ログ "+d.mails+" 件 ／ 保存ファイル(PDF・写真) "+d.files+" 件"):"")+
    srvRow("ログインパスワード",c.password?"設定済み":"未設定",c.password)+
    srvRow("ログインの署名鍵(SESSION_SECRET)",c.sessionSecret?"設定済み":"未設定(パスワードから生成)",null)+
+   srvRow("Gmail連携",'<span id="gmrow">'+gmDetail()+'</span>')+
    srvRow("メール取込の受信口",c.inboundToken?"有効":"INBOUND_TOKEN が未設定",c.inboundToken)+
    srvRow("受信口のアドレス",'<code style="word-break:break-all">'+e(r.inbound.endpoint||"")+'</code>')+
    srvRow("最後の取込",r.inbound.lastAt?e(fmtAt(r.inbound.lastAt))+ago+(r.inbound.lastSubject?"<br><span class=\"sub\">"+e(r.inbound.lastSubject)+"("+e(r.inbound.lastState)+")</span>":""):"まだありません",null)+
@@ -1628,6 +1638,27 @@ async function loadSrv(){
    srvRow("確認した時刻",e(fmtAt(r.at)))+'</tbody></table>';
  }catch(x){box.innerHTML='<div class="sub" style="color:var(--bad)">確認できませんでした: '+e(x.message||x)+'</div>'}
 }
+
+/* ---- Gmail連携の印(Apps Script が5分ごとに送る生存確認から判定) ---- */
+var GM={hb:null,at:0,err:""};
+function gmState(){
+ var hb=GM.hb;if(Store.mode!=="server")return null;
+ if(GM.err)return {c:"warn",t:"Gmail連携: 確認できません",d:GM.err};
+ if(!hb)return {c:"warn",t:"Gmail連携: 未確認",d:"Apps Script からの最初の連絡を待っています(5分ごと)"};
+ var m=Math.round((Date.now()-new Date(hb.at))/60000),when=fmtAt(hb.at)+(m<1?"(たった今)":"("+m+"分前)");
+ var cnt="確認 "+hb.scanned+"件 ／ 取込 "+hb.sent+"件"+(hb.pending?" ／ 再試行待ち "+hb.pending+"件":"");
+ if(m>15)return {c:"bad",t:"Gmail連携: 停止中?",d:"最後の連絡は"+when+"。5分ごとに届くはずです。Apps Script のトリガーを確認してください。"};
+ if(!hb.ok){var q=/too many times|Service invoked/i.test(hb.error||"");return {c:"bad",t:"Gmail連携: エラー",d:(q?"Gmailの1日の利用上限に達しています。時間がたつと自動で再開します。":hb.error||"原因不明のエラー")+"(最後の連絡 "+when+")"}}
+ return {c:"ok",t:"Gmail連携中",d:"最後の確認 "+when+" ／ "+cnt};
+}
+function gmHtml(){var s=gmState();return s?'<span class="gm '+s.c+'" title="'+e(s.d)+'" role="status"><i></i>'+e(s.t)+'</span>':""}
+function drawGm(){var a=$("#gmchip"),b=$("#gmside");if(a)a.innerHTML=gmHtml();if(b)b.innerHTML=gmHtml()}
+async function pollGm(){
+ if(Store.mode!=="server")return;
+ try{var r=await post("/api/status",{light:true});GM.hb=r.heartbeat;GM.err=""}catch(x){GM.err="サーバーに接続できません"}
+ drawGm();var sr=$("#gmrow");if(sr)sr.innerHTML=gmDetail();
+}
+function gmDetail(){var s=gmState();return s?'<span class="gm '+s.c+'"><i></i>'+e(s.t)+'</span> <span class="sub">'+e(s.d)+'</span>':""}
 function closeDlg(){S.dlg=null;$("#layer").innerHTML="";var rp=$("#rpt");if(rp)rp.remove();closePreview()}
 function newJob(){
  var n=new Date().toISOString();
@@ -1788,12 +1819,12 @@ async function boot(){
    else if(j&&j.ok===false)info=await loginUi();
   }catch(x){info=null}
  }
- if(info){Store=Server;S.mode="server";S.flags={ai:!!info.ai,inbound:!!info.inbound}}
+ if(info){Store=Server;S.mode="server";S.flags={ai:!!info.ai,inbound:!!info.inbound};NAV=NAV.filter(function(n){return n[0]!=="import"});if(S.tab==="import")S.tab="home"}
  else{Store=Local;S.mode="local"}
  try{await reload(true)}catch(x){toast("データを読み込めませんでした: "+x.message)}
  render();
  if(S.nopw)toast("サーバーに APP_PASSWORD が設定されていないため、お試しモードで開きました");
- if(Store.mode==="server")setInterval(function(){if(!document.hidden)checkNew()},20000);
+ if(Store.mode==="server"){setInterval(function(){if(!document.hidden)checkNew()},20000);pollGm();setInterval(function(){if(!document.hidden)pollGm()},60000)}
 }
 boot();
 })();
