@@ -9,7 +9,7 @@ const nm = path.join(__dirname, "../node_modules/pdfjs-dist/build/");
   await p.goto("http://localhost:3123/"); await p.waitForSelector(".login"); await p.fill("#lpw", "test1234"); await p.click(".login button"); await p.waitForSelector(".pghead");
   for (const n of ["order.pdf", "report.pdf"]) {
     const b64 = fs.readFileSync(path.join(__dirname, "fixtures", n)).toString("base64");
-    const j = await p.evaluate(async ([n, b64]) => (await fetch("/api/workpdf", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: n, b64 }) })).json(), [n, b64]);
+    const j = await p.evaluate(async ([n, b64]) => (await fetch("/api/workpdf", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ create: true, name: n, b64 }) })).json(), [n, b64]);
     console.log(n, j.results[0].state);
   }
   await p.reload(); await p.waitForSelector(".pghead");

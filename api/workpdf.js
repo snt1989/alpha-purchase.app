@@ -12,7 +12,7 @@ module.exports = async (req, res) => {
   try {
     const data = new Uint8Array(Buffer.from(b.b64, "base64"));
     const pw = String(b.password || "").slice(0, 100);
-    const results = await processAttachments([{ name, data }], pw ? [{ subject: "入力されたパスワード", body: "パスワード: " + pw }] : [], { source: "pdf" });
+    const results = await processAttachments([{ name, data }], pw ? [{ subject: "入力されたパスワード", body: "パスワード: " + pw }] : [], { source: "pdf", attachOnly: b.create !== true });
     res.json({ ok: true, results: results.map((r) => ({ file: r.file, state: r.state, no: r.no, reqNo: r.reqNo, error: r.error, code: r.code })) });
   } catch (e) {
     res.status(500).json({ ok: false, error: String((e && e.message) || e).slice(0, 200) });

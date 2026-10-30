@@ -20,9 +20,21 @@ const inbound = require("../api/inbound.js"), auth = require("../api/auth.js"), 
   let r = await call(inbound, { headers: H, body: { messageId: "p1", from: "mente-report@alphapurchase.co.jp", subject: "【新規修繕依頼】ローソン横浜町道の駅前店", body: "新規修繕依頼\n品名: 修繕 数量: 1" } });
   assert.strictEqual(r.json.state, "registered", JSON.stringify(r.json));
   const list = async () => (await call(db, { headers: C, body: { op: "list", col: "orders" } })).json.docs.map((d) => d.data);
-  const id = (await list())[0].id;
+  const before = (await list())[0], id = before.id;
+  // 「書類の確認」から追加 → 案件は増えず、内容も書き換えず、書類だけ付く
   r = await call(workpdf, { headers: C, body: { name: "order.pdf", b64: fs.readFileSync(path.join(__dirname, "fixtures/order.pdf")).toString("base64") } });
-  assert.strictEqual(r.json.results[0].state, "merged", JSON.stringify(r.json));
-  const all = await list(); assert.strictEqual(all.length, 1); assert.strictEqual(all[0].id, id);
+  assert.strictEqual(r.json.results[0].state, "docs_added", JSON.stringify(r.json));
+  let all = await list(); assert.strictEqual(all.length, 1); assert.strictEqual(all[0].id, id);
+  assert.strictEqual(all[0].subject, before.subject); assert.strictEqual(all[0].status, before.status);
+  assert.ok(all[0].files.some((f) => f.kind === "order" && f.url));
+  r = await call(workpdf, { headers: C, body: { name: "report.pdf", b64: fs.readFileSync(path.join(__dirname, "fixtures/report.pdf")).toString("base64") } });
+  assert.strictEqual(r.json.results[0].state, "no_match", JSON.stringify(r.json)); // 別の案件の報告書は付けない
+  all = await list(); assert.strictEqual(all.length, 1); assert.strictEqual(all[0].files.length, 1);
+  // 紐づく案件がない場合は新規登録しない
+  const db2 = await call(db, { headers: C, body: { op: "list", col: "orders" } });
+  for (const d of db2.json.docs) await call(db, { headers: C, body: { op: "del", col: "orders", id: d.id } });
+  r = await call(workpdf, { headers: C, body: { name: "order.pdf", b64: fs.readFileSync(path.join(__dirname, "fixtures/order.pdf")).toString("base64") } });
+  assert.strictEqual(r.json.results[0].state, "no_match", JSON.stringify(r.json));
+  assert.strictEqual((await list()).length, 0);
   console.log("premail link tests OK");
 })().catch((e) => { console.error(e); process.exit(1); });

@@ -167,6 +167,30 @@ async function registerWork(w, file, ctx) {
   return { state: "registered", job };
 }
 
+/** 「書類の確認」から追加したPDFは、既存の案件に書類として付けるだけ。案件を新規に作らず、案件の内容も書き換えない */
+async function attachDoc(kind, k, file) {
+  const flat = (await redis(["HGETALL", K.orders])) || [];
+  const all = [];
+  for (let i = 0; i + 1 < flat.length; i += 2) { try { all.push(JSON.parse(flat[i + 1])); } catch (e) {} }
+  const live = all.filter((o) => o.status !== 8);
+  const o = (k.reqNo && live.find((x) => x.reqNo === k.reqNo)) || (k.caseNo && (live.find((x) => x.caseNo === k.caseNo) || live.find((x) => String(x.subject || "").indexOf(k.caseNo) >= 0))) || byStore(live, k.site) || null;
+  if (!o) return { state: "no_match" };
+  const now = new Date().toISOString(), cmds = [];
+  const label = kind === "order" ? "作業依頼書" : "作業完了報告書";
+  const entry = { name: (file && file.name) || label + ".pdf", label, kind };
+  const fid = o.id + (kind === "order" ? "-1" : "-r");
+  const b64 = Buffer.from(file.data).toString("base64");
+  if (b64.length <= MAX_FILE_B64) {
+    cmds.push(["SET", "ap:file:" + fid, b64], ["HSET", "ap:fmeta", fid, JSON.stringify({ id: fid, name: entry.name, mime: "application/pdf", job: o.id, at: now })]);
+    entry.url = "/api/file?id=" + encodeURIComponent(fid);
+  }
+  o.files = (o.files || []).filter((f) => (f.kind || (/報告/.test((f.label || "") + (f.name || "")) ? "report" : "order")) !== kind).concat(entry);
+  o.history = (o.history || []).concat({ at: now, text: label + "を書類として追加(" + entry.name + ")" });
+  cmds.push(["HSET", K.orders, o.id, JSON.stringify(o)], ["INCR", K.ver("orders")]);
+  await pipeline(cmds);
+  return { state: "docs_added", job: o };
+}
+
 /** 作業完了報告書(様式)を案件に付ける。案件番号が同じ案件があればそこへ、なければ仮の案件を作る(あとで作業依頼書が届いたら内容を確定する) */
 async function registerReport(rep, file, ctx) {
   ctx = ctx || {};
@@ -224,7 +248,11 @@ async function processAttachments(attachments, pwTexts, ctx) {
       // 作業依頼書を先に、作業完了報告書を後に処理する(同じ案件に結びつけるため)
       docs.sort((x, y) => (AP.isWorkOrder(y.text) ? 1 : 0) - (AP.isWorkOrder(x.text) ? 1 : 0));
       for (const { p, text } of docs) {
-        if (AP.isWorkOrder(text)) {
+        if (ctx && ctx.attachOnly && (AP.isWorkOrder(text) || AP.isCompletionReport(text))) {
+          const isO = AP.isWorkOrder(text), x = isO ? AP.parseWorkOrder(text) : AP.parseCompletionReport(text);
+          const r = await attachDoc(isO ? "order" : "report", { reqNo: x.reqNo, caseNo: x.caseNo, site: x.site || x.property }, p);
+          results.push({ file: p.name, state: r.state, no: r.job && r.job.no, reqNo: x.reqNo });
+        } else if (AP.isWorkOrder(text)) {
           const w = AP.parseWorkOrder(text);
           const r = await registerWork(w, p, Object.assign({}, ctx, { pwFrom }));
           results.push({ file: p.name, state: r.state, no: r.job.no, reqNo: w.reqNo });

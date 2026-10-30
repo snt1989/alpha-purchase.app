@@ -22,7 +22,7 @@ const inbound = require("../api/inbound.js"), auth = require("../api/auth.js"), 
   const list = async () => (await call(db, { headers: C, body: { op: "list", col: "orders" } })).json.docs.map((d) => d.data);
   let o = (await list())[0]; assert.ok(o.pdfLink && o.needsReview); const id = o.id, no = o.no;
   // 2) PDF(ZIP)を読み込む → 新規ではなく、同じ案件に反映される
-  r = await call(workpdf, { headers: C, body: { name: "依頼.zip", b64: fs.readFileSync(zipPath).toString("base64"), password: "himitsu123" } });
+  r = await call(workpdf, { headers: C, body: { create: true, name: "依頼.zip", b64: fs.readFileSync(zipPath).toString("base64"), password: "himitsu123" } });
   assert.strictEqual(r.json.results[0].state, "merged", JSON.stringify(r.json));
   const all = await list(); assert.strictEqual(all.length, 1); o = all[0];
   assert.strictEqual(o.id, id); assert.strictEqual(o.no, no); assert.strictEqual(o.reqNo, "2610-01991-2829"); assert.ok(!o.pdfLink);

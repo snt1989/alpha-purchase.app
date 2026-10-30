@@ -15,7 +15,7 @@ const auth = require("../api/auth.js"), db = require("../api/db.js"), workpdf = 
   const lg = await call(auth, { body: { op: "login", password: "pw-for-test" } });
   const C = { cookie: lg.headers["set-cookie"].split(";")[0] };
   const list = async () => (await call(db, { headers: C, body: { op: "list", col: "orders" } })).json.docs.map((d) => d.data);
-  const up = (name, b64) => call(workpdf, { headers: C, body: { name, b64 } });
+  const up = (name, b64) => call(workpdf, { headers: C, body: { create: true, name, b64 } });
   if (process.argv[2] === "B") {
     // B) 作業完了報告書が先に届く → 仮登録 → 作業依頼書が届くと内容が確定(件数は増えない)
     let r = await up("report.pdf", fx("report.pdf")); assert.strictEqual(r.json.results[0].state, "provisional", JSON.stringify(r.json));
