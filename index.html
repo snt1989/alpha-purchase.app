@@ -403,7 +403,7 @@ function badge(tab){if(tab==="list"){var n=S.orders.filter(function(o){return o.
 function renderNav(){
  $("#side").innerHTML='<div class="brand"><span class="plate"><img src="'+LOGO+'" alt="Alpha Purchase"></span><div class="nm">受注ナビ<small>SANOH × ALPHA PURCHASE</small></div></div>'+
   NAV.map(function(n){return '<button class="nv" data-a="tab" data-t="'+n[0]+'"'+(S.tab===n[0]?' aria-current="page"':"")+'>'+ic(n[2])+'<span>'+n[1]+'</span>'+badge(n[0])+'</button>'}).join("")+
-  '<div class="sidefoot">'+(S.mode==="server"?'<div id="gmside"></div>':"")+(S.mode==="server"?"共有データ(サーバー保存)":S.mode==="artifact"?"共有データ(クラウド保存)":"お試しモード(このブラウザ内に保存)")+'</div>';
+  '<div class="sidefoot">'+(S.mode==="server"||S.mode==="artifact"?'<div id="gmside"></div>':"")+(S.mode==="server"?"共有データ(サーバー保存)":S.mode==="artifact"?"共有データ(クラウド保存)":"お試しモード(このブラウザ内に保存)")+'</div>';
  $("#bnav").innerHTML=NAV.filter(function(n){return n[0]!=="cust"}).map(function(n){return '<button data-a="tab" data-t="'+n[0]+'"'+(S.tab===n[0]?' aria-current="page"':"")+'>'+ic(n[2])+n[1]+badge(n[0])+'</button>'}).join("");
  var tl=$("#tlogo");if(tl&&!tl.src)tl.src=LOGO;
  drawGm();
@@ -1041,6 +1041,7 @@ async function loadSrv(){
 /* ---- Gmail連携の印(Apps Script が5分ごとに送る生存確認から判定) ---- */
 var GM={hb:null,at:0,err:""};
 function gmState(){
+ if(S.mode==="artifact")return gmArtState();
  var hb=GM.hb;if(Store.mode!=="server")return null;
  if(GM.err)return {c:"warn",t:"Gmail連携: 確認できません",d:GM.err};
  if(!hb)return {c:"warn",t:"Gmail連携: 未確認",d:"Apps Script からの最初の連絡を待っています(5分ごと)"};
@@ -1049,6 +1050,36 @@ function gmState(){
  if(m>15)return {c:"bad",t:"Gmail連携: 停止中?",d:"最後の連絡は"+when+"。5分ごとに届くはずです。Apps Script のトリガーを確認してください。"};
  if(!hb.ok){var q=/too many times|Service invoked/i.test(hb.error||"");return {c:"bad",t:"Gmail連携: エラー",d:(q?"Gmailの1日の利用上限に達しています。時間がたつと自動で再開します。":hb.error||"原因不明のエラー")+"(最後の連絡 "+when+")"}}
  return {c:"ok",t:"Gmail連携中",d:"最後の確認 "+when+" ／ "+cnt};
+}
+/* claude.ai版: このページを開いている間、Gmailを自動で確認して登録(5分ごと) */
+var GA={at:0,ok:null,err:"",busy:false,sent:0,scanned:0};
+function gmArtState(){
+ if(GA.busy&&!GA.at)return {c:"warn",t:"Gmail連携: 確認中",d:"Gmailを確認しています"};
+ if(GA.ok===null)return {c:"warn",t:"Gmail連携: 未確認",d:"まもなく確認します"};
+ var m=Math.round((Date.now()-GA.at)/60000),when=fmtAt(new Date(GA.at).toISOString())+(m<1?"(たった今)":"("+m+"分前)");
+ if(!GA.ok)return {c:"bad",t:"Gmail連携: エラー",d:GA.err+"(最後の確認 "+when+")"};
+ return {c:"ok",t:"Gmail連携中",d:"最後の確認 "+when+" ／ 確認 "+GA.scanned+"通 ／ 取込 "+GA.sent+"件(このページを開いている間、5分ごとに自動)"};
+}
+async function gmAuto(){
+ if(GA.busy||S.busy||!CAP.mcp)return;
+ GA.busy=true;var sent=0,scanned=0;
+ try{
+  var r=await CAP.mcp.callTool("Gmail","search_threads",{query:GM_Q,pageSize:30},{cache:false});
+  var th=(r.payload&&r.payload.threads)||[],list=[];
+  th.forEach(function(t){(t.messages||[]).forEach(function(m){if(m&&m.id&&!gmDone(m))list.push(m)})});
+  scanned=list.length;
+  for(var i=0;i<list.length&&i<10;i++){
+   var m=list[i];
+   var q=await CAP.mcp.callTool("Gmail","get_message",{messageId:m.id,messageFormat:"PLAIN_TEXT"},{cache:false}),p=q.payload||{};
+   var body=p.plaintextBody||p.plaintext_body||p.plainTextBody||p.body||p.snippet||"";
+   var out=await Store.ingest({text:String(body),from:p.sender||m.sender,subject:p.subject||m.subject,date:p.date||m.date||"",messageId:m.id,source:"gmail"});
+   if(out.state==="registered")sent+=out.jobs.length;
+   await reload(true);
+  }
+  GA.ok=true;GA.err="";
+ }catch(x){GA.ok=false;GA.err=gmErr(x)}
+ GA.at=Date.now();GA.sent=sent;GA.scanned=scanned;GA.busy=false;
+ drawGm();if(sent){renderNav();render();toast("Gmailから "+sent+" 件登録しました")}
 }
 function gmHtml(){var s=gmState();return s?'<span class="gm '+s.c+'" title="'+e(s.d)+'" role="status"><i></i>'+e(s.t)+'</span>':""}
 function drawGm(){var a=$("#gmchip"),b=$("#gmside");if(a)a.innerHTML=gmHtml();if(b)b.innerHTML=gmHtml()}
@@ -1204,9 +1235,9 @@ async function boot(){
   var caps=await Promise.all([useCap("db"),useCap("sample"),useCap("mcp"),useCap("downloads"),useCap("assets")]);
   CAP.db=caps[0];CAP.sample=caps[1];CAP.mcp=caps[2];CAP.downloads=caps[3];CAP.assets=caps[4];
   if(CAP.db){
-   Store=Art;S.mode="artifact";S.flags={ai:!!CAP.sample,inbound:false};
+   Store=Art;S.mode="artifact";S.flags={ai:!!CAP.sample,inbound:false};NAV=NAV.filter(function(n){return n[0]!=="import"});
    await Art.start(function(){if(!S.busy)reload()});
-   await reload(true);render();return;
+   await reload(true);render();gmAuto();setInterval(function(){if(!document.hidden)gmAuto()},300000);setInterval(drawGm,60000);return;
   }
  }
  if(location.protocol!=="file:"&&!(window.claude&&window.claude.use)){
