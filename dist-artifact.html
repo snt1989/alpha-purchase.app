@@ -1924,8 +1924,14 @@ async function gmAuto(){
   scanned=list.length;
   for(var i=0;i<list.length&&i<10;i++){
    var m=list[i];
-   var q=await CAP.mcp.callTool("Gmail","get_message",{messageId:m.id,messageFormat:"PLAIN_TEXT"},{cache:false}),p=q.payload||{};
+   var q=await CAP.mcp.callTool("Gmail","get_message",{messageId:m.id,messageFormat:"FULL_CONTENT"},{cache:false}),p=q.payload||{};
    var body=p.plaintextBody||p.plaintext_body||p.plainTextBody||p.body||p.snippet||"";
+   var atn=(p.attachments||[]).map(function(x){return x&&(x.filename||x.name)||""}).filter(function(n){return /\.(zip|pdf)$/i.test(n)});
+   if(atn.length){
+    // ZIP・PDFの添付は、この画面からは中身を取り出せない。Vercel版(自動でパスワードも前後のメールから探して解凍)で処理されるか、「書類の確認」から追加する
+    await Store.saveMail({key:AP.mailKey({messageId:m.id}),at:new Date().toISOString(),state:"error",from:p.sender||m.sender||"",subject:p.subject||m.subject||"",date:p.date||"",url:gmUrl(m.id),reason:"添付("+atn.join("、")+")があります。パスワードは前後のメールに届くので、Vercel版で自動処理されます。この画面では中身を開けないため、保存したファイルを「書類の確認」から追加してください"});
+    continue;
+   }
    var out=await Store.ingest({text:String(body),from:p.sender||m.sender,subject:p.subject||m.subject,date:p.date||m.date||"",messageId:m.id,source:"gmail"});
    if(out.state==="registered")sent+=out.jobs.length;
    await reload(true);
