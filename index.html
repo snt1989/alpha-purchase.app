@@ -436,7 +436,57 @@ async function checkNew(){
 }
 
 function b64Of(file){return new Promise(function(res,rej){var r=new FileReader();r.onload=function(){res(String(r.result).split(",")[1]||"")};r.onerror=function(){rej(new Error("ファイルを読めませんでした"))};r.readAsDataURL(file)})}
+/* ---- claude.ai版: 「書類の確認」から追加したPDFを、ブラウザ内で読み取って既存の案件に書類として付ける ---- */
+function aPre(o){return !o.reqNo&&!o.provisional&&!(o.files||[]).length}
+function aNrm(t){return String(t||"").replace(/[\s\u3000【】\[\]()（）]/g,"").replace(/\d{6,}/g,"")}
+function aLcs(a,b){var best=0,prev=[],i,j;for(j=0;j<=b.length;j++)prev[j]=0;for(i=1;i<=a.length;i++){var cur=[0];for(j=1;j<=b.length;j++){cur[j]=a[i-1]===b[j-1]?prev[j-1]+1:0;if(cur[j]>best)best=cur[j]}prev=cur}return best}
+function aByStore(all,name){var n=aNrm(name);if(n.length<3)return null;var c=all.filter(function(o){return aPre(o)&&[o.site,o.subject].some(function(t){var m=aNrm(t);return m&&aLcs(m,n)>=6})});return c.length===1?c[0]:null}
+function aFind(k){var live=S.orders.filter(function(o){return o.status!==8});
+ return (k.reqNo&&live.filter(function(x){return x.reqNo===k.reqNo})[0])||(k.caseNo&&(live.filter(function(x){return x.caseNo===k.caseNo})[0]||live.filter(function(x){return String(x.subject||"").indexOf(k.caseNo)>=0})[0]))||aByStore(live,k.site)||null}
+async function aSplit(name,blob){
+ var doc=await pdfDoc(blob),pages=await pdfText(doc,true);
+ if(pages.length<2)return [{name:name,blob:blob}];
+ var type=pages.map(function(t){return AP.isWorkOrder(t)?"order":AP.isCompletionReport(t)?"report":""}),segs=[];
+ pages.forEach(function(t,i){var last=segs[segs.length-1];if(!type[i]||(last&&last.type===type[i])){if(last)last.pages.push(i);else segs.push({type:"",pages:[i]})}else segs.push({type:type[i],pages:[i]})});
+ if(segs.length>1&&!segs[0].type){segs[1].pages=segs[0].pages.concat(segs[1].pages);segs.shift()}
+ var typed=segs.filter(function(g){return g.type}),kinds={};typed.forEach(function(g){kinds[g.type]=1});
+ if(Object.keys(kinds).length<2)return [{name:name,blob:blob}];
+ if(!window.PDFLib)await loadScript(LIB.pdflib);
+ var src=await window.PDFLib.PDFDocument.load(await blob.arrayBuffer(),{ignoreEncryption:true}),base=name.replace(/\.pdf$/i,""),out=[],n={};
+ for(var i=0;i<typed.length;i++){var g=typed[i],d=await window.PDFLib.PDFDocument.create();(await d.copyPages(src,g.pages)).forEach(function(pg){d.addPage(pg)});
+  var lbl=g.type==="order"?"作業依頼書":"作業完了報告書";n[lbl]=(n[lbl]||0)+1;
+  out.push({name:base+"_"+lbl+(n[lbl]>1?n[lbl]:"")+".pdf",blob:new Blob([await d.save()],{type:"application/pdf"})})}
+ return out;
+}
+async function artWorkUpload(files){
+ if(!files.length)return;S.busy=true;var msg=[];
+ try{
+  if(!CAP.assets)throw new Error("ファイルの保存が許可されていません");
+  await libs();
+  for(var i=0;i<files.length;i++){
+   var f=files[i],pdfs=[];toast("読み込み中… "+f.name);
+   try{
+    if(/\.zip$/i.test(f.name)){
+     var pw=zpwGet();try{pdfs=await unzipPdfs(f,pw)}catch(x){var pw2=window.prompt(f.name+" のパスワードを入力してください");if(!pw2)throw x;pdfs=await unzipPdfs(f,pw2)}
+    }else pdfs=[{name:f.name,blob:f}];
+    var parts=[];for(var a=0;a<pdfs.length;a++)parts=parts.concat(await aSplit(pdfs[a].name,pdfs[a].blob));
+    for(var b=0;b<parts.length;b++){
+     var pt=parts[b],text=await pdfText(await pdfDoc(pt.blob)),isO=AP.isWorkOrder(text),isR=!isO&&AP.isCompletionReport(text);
+     if(!isO&&!isR){msg.push(pt.name+": 作業依頼書・作業完了報告書の書式ではありません");continue}
+     var x=isO?AP.parseWorkOrder(text):AP.parseCompletionReport(text),o=aFind({reqNo:x.reqNo,caseNo:x.caseNo,site:x.site||x.property});
+     if(!o){msg.push(pt.name+": 紐づく案件が見つかりません(案件は新規登録しません)");continue}
+     var kind=isO?"order":"report",lbl=isO?"作業依頼書":"作業完了報告書",up=await CAP.assets.upload(pt.blob);
+     o.files=(o.files||[]).filter(function(q){return docKind(q)!==kind}).concat([{name:pt.name,asset:up.id,label:lbl,kind:kind}]);
+     o.history=(o.history||[]).concat({at:new Date().toISOString(),text:lbl+"を書類として追加("+pt.name+")"});
+     await Store.saveOrder(o);msg.push(pt.name+": "+o.no+" に"+lbl+"を追加しました");
+    }
+   }catch(err){msg.push(f.name+": "+(err.message||"失敗"))}
+  }
+ }catch(err){msg.push(err.message||"失敗")}
+ S.busy=false;await reload(true);render();toast(msg.join(" ／ "));
+}
 async function workUpload(files,keepId){
+ if(S.mode!=="server")return artWorkUpload(files);
  if(!files.length)return;var msg=[];S.busy=true;
  for(var i=0;i<files.length;i++){
   var f=files[i];toast("読み込み中… "+f.name);
@@ -554,7 +604,7 @@ function autoBox(){
   '<pre class="code" id="scr">'+e(scriptText())+'</pre><button class="btn sm" data-a="copyscr">コードをコピー</button>';
 }
 /* ---- 作業依頼書(ZIP / PDF)の取込 ---- */
-var LIB={pdf:"https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js",pdfw:"https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js",zip:"https://cdn.jsdelivr.net/npm/@zip.js/zip.js@2.7.62/dist/zip-full.min.js"};
+var LIB={pdflib:"https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js",pdf:"https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js",pdfw:"https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js",zip:"https://cdn.jsdelivr.net/npm/@zip.js/zip.js@2.7.62/dist/zip-full.min.js"};
 function zpwGet(){try{return localStorage.getItem("ap:zpw")||""}catch(x){return ""}}
 function zpwSet(v){try{if(v)localStorage.setItem("ap:zpw",v);else localStorage.removeItem("ap:zpw")}catch(x){}}
 function loadScript(src){return new Promise(function(res,rej){var sc=document.createElement("script");sc.src=src;sc.onload=res;sc.onerror=function(){rej(new Error("読み込みに失敗しました: "+src.split("/").pop()))};document.head.appendChild(sc)})}
@@ -569,16 +619,17 @@ function libs(){
 }
 // PDF → 行ごとの文字(同じ高さの文字を1行に、離れたセルはタブ区切り)
 async function pdfDoc(blob){return await window.pdfjsLib.getDocument({data:new Uint8Array(await blob.arrayBuffer()),isEvalSupported:false}).promise}
-async function pdfText(doc){
- var out=[];
+async function pdfText(doc,asPages){
+ var out=[],pages=[];
  for(var p=1;p<=doc.numPages;p++){
   var pg=await doc.getPage(p),tc=await pg.getTextContent(),rows=[];
   tc.items.filter(function(i){return i.str&&i.str.trim()}).forEach(function(i){var y=i.transform[5],r=null;for(var k=0;k<rows.length;k++)if(Math.abs(rows[k].y-y)<3){r=rows[k];break}if(!r){r={y:y,it:[]};rows.push(r)}r.it.push({s:i.str,x:i.transform[4],w:i.width})});
   rows.sort(function(a,b){return b.y-a.y});
   rows.forEach(function(r){r.it.sort(function(a,b){return a.x-b.x});var line="",end=null;r.it.forEach(function(i){if(end!=null&&i.x-end>6)line+="\t";line+=i.s;end=i.x+i.w});out.push(line)});
   out.push("");
+  if(asPages)pages.push(out.splice(0).join("\n"));
  }
- return out.join("\n");
+ return asPages?pages:out.join("\n");
 }
 async function pdfImage(doc){
  var pg=await doc.getPage(1),vp=pg.getViewport({scale:2}),c=document.createElement("canvas");c.width=vp.width;c.height=vp.height;
@@ -797,7 +848,7 @@ function pgDocs(){
  var c={all:L.length,both:L.filter(function(x){return x.n===2}).length,one:L.filter(function(x){return x.n===1}).length,none:L.filter(function(x){return x.n===0}).length};
  var f=S.docf||"all",rows=L.filter(function(x){return f==="all"||(f==="both"&&x.n===2)||(f==="one"&&x.n===1)||(f==="none"&&x.n===0)});
  rows.sort(function(a,b){return (a.n-b.n)||String(b.o.receivedAt||b.o.createdAt).localeCompare(String(a.o.receivedAt||a.o.createdAt))});
- var h='<div class="pghead"><h2 class="pt">書類の確認</h2><div class="pgact"><button class="btn out" data-a="dupchk">重複チェック</button>'+(S.mode==="server"?'<label class="btn out" style="cursor:pointer">作業依頼書・作業完了報告書追加<input type="file" id="wpf" accept=".pdf,.zip,application/pdf" multiple hidden></label>':"")+'</div></div>';
+ var h='<div class="pghead"><h2 class="pt">書類の確認</h2><div class="pgact"><button class="btn out" data-a="dupchk">重複チェック</button>'+(S.mode!=="local"?'<label class="btn out" style="cursor:pointer">作業依頼書・作業完了報告書追加<input type="file" id="wpf" accept=".pdf,.zip,application/pdf" multiple hidden></label>':"")+'</div></div>';
  if(S.dupOn)h+=dupCard();
  h+='<div class="sub" style="margin-bottom:10px">すべての案件(キャンセル以外)について、作業依頼書・作業完了報告書が付いているかを確認できます。「紐づけ解除」で外した書類は下の「未紐づけの書類」に残ります。</div>';
  h+='<div class="grid alerts">'+
