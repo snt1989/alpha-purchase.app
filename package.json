@@ -1,1 +1,14 @@
-{ "name": "alpha-purchase-orders", "private": true, "version": "1.0.0", "engines": { "node": ">=18" }, "scripts": { "dev": "node dev/server.js", "test": "node test/parse.test.js && node test/api.test.js" } }
+{
+  "name": "alpha-purchase-orders",
+  "private": true,
+  "version": "1.1.0",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "dev": "node dev/server.js",
+    "test": "node test/parse.test.js && node test/api.test.js && node test/inbound.test.js"
+  },
+  "dependencies": {
+    "@zip.js/zip.js": "2.7.62",
+    "pdfjs-dist": "3.11.174"
+  }
+}
