@@ -27,7 +27,7 @@ async function unzipPdfs(bytes, pw, depth) {
   const zip = zipjs(), out = [];
   const rd = new zip.ZipReader(new zip.Uint8ArrayReader(bytes), { password: pw || undefined });
   try {
-    const ents = await rd.getEntries({ filenameEncoding: "shift_jis" });
+    const ents = await rd.getEntries({ decodeText: decodeName });
     for (const en of ents) {
       if (en.directory || /^__MACOSX|\/\._/.test(en.filename)) continue;
       const name = en.filename.split("/").pop();
@@ -36,6 +36,11 @@ async function unzipPdfs(bytes, pw, depth) {
     }
   } finally { try { await rd.close(); } catch (e) {} }
   return out;
+}
+// ZIP内のファイル名: UTF-8 として正しければ UTF-8、そうでなければ Shift_JIS(Windows で作ったZIP)
+function decodeName(bytes) {
+  try { return new TextDecoder("utf-8", { fatal: true }).decode(bytes); }
+  catch (e) { try { return new TextDecoder("shift_jis").decode(bytes); } catch (e2) { return Buffer.from(bytes).toString("latin1"); } }
 }
 function needsPw(e) { return /password|encrypted/i.test(String((e && e.message) || e)); }
 

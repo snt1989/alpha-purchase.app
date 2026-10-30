@@ -511,7 +511,7 @@ async function pdfImage(doc){
 async function unzipPdfs(blob,pw,depth){
  var rd=new window.zip.ZipReader(new window.zip.BlobReader(blob),{password:pw||undefined}),out=[];
  try{
-  var ents=await rd.getEntries({filenameEncoding:"shift_jis"});
+  var ents=await rd.getEntries({decodeText:function(b){try{return new TextDecoder("utf-8",{fatal:true}).decode(b)}catch(x){try{return new TextDecoder("shift_jis").decode(b)}catch(y){return ""}}}});
   for(var i=0;i<ents.length;i++){
    var en=ents[i];if(en.directory)continue;
    var nm=en.filename.split("/").pop();
