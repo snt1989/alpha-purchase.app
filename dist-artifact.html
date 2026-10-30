@@ -1097,7 +1097,8 @@ function mailState(m){
 
 function pgList(){
  var cnt=function(i){return S.orders.filter(function(o){return o.status===i}).length};
- var h='<div class="pghead"><h2 class="pt">案件一覧</h2><div class="pgact"><button class="btn" data-a="csv">CSV出力</button><button class="btn pri" data-a="new">新規登録</button></div></div>';
+ var h='<div class="pghead"><h2 class="pt">案件一覧</h2><div class="pgact"><button class="btn" data-a="dupchk">重複チェック</button><button class="btn" data-a="csv">CSV出力</button><button class="btn pri" data-a="new">新規登録</button></div></div>';
+ if(S.dupOn)h+=dupCard();
  h+='<div class="pipe"><button data-a="flt" data-f="status:" aria-pressed="'+(S.f.status===""&&!S.f.sp)+'"><b>'+S.orders.length+'</b><span>すべて</span></button>'+
   ST.map(function(s,i){return '<button data-a="flt" data-f="status:'+i+'" aria-pressed="'+(S.f.status===String(i))+'"><b>'+cnt(i)+'</b><span>'+e(s)+'</span></button>'}).join("")+'</div>';
  h+='<div class="tools"><input type="search" id="q" placeholder="店舗・作業名・依頼番号・取引先で検索" value="'+e(S.f.q)+'">'+
@@ -1376,13 +1377,39 @@ function docState(o){
  return has;
 }
 function docTag(f){return f?(fileSrc(f)?'<span class="tag" style="color:var(--ok);border-color:var(--ok)">✓ 紐づけ済</span>':'<span class="tag rv" title="サイズが大きく保存されていません">名前のみ</span>'):'<span class="tag" style="color:var(--bad);border-color:var(--bad)">— なし</span>'}
+/* ---- 重複チェック: 作業依頼番号・顧客案件番号・店舗+件名が同じ案件をまとめて表示 ---- */
+S.dupOn=false;
+function dupGroups(){
+ var L=S.orders.filter(function(o){return o.status!==8}),par={};
+ function f(x){while(par[x]!==x)x=par[x]=par[par[x]];return x}
+ L.forEach(function(o){par[o.id]=o.id});
+ var seen={};
+ function link(k,o){if(!k)return;if(seen[k]===undefined)seen[k]=o.id;else par[f(o.id)]=f(seen[k])}
+ L.forEach(function(o){
+  link(o.reqNo&&"r:"+o.reqNo,o);link(o.caseNo&&"c:"+o.caseNo,o);
+  var t=(title(o)+"|"+(o.subject||"")).replace(/[\s　【】]/g,"").replace(/\d{6,}/g,"");
+  link(t.length>6&&"t:"+t,o);
+ });
+ var g={};L.forEach(function(o){var r=f(o.id);(g[r]=g[r]||[]).push(o)});
+ return Object.keys(g).map(function(k){return g[k]}).filter(function(a){return a.length>1}).map(function(a){
+  return a.slice().sort(function(x,y){return ((y.files||[]).length-(x.files||[]).length)||(x.reqNo?0:1)-(y.reqNo?0:1)||String(x.createdAt||x.no).localeCompare(String(y.createdAt||y.no))});
+ });
+}
+function dupCard(){
+ var G=dupGroups();
+ if(!G.length)return '<div class="card2"><h3>重複チェック</h3><div class="sub">重複している案件はありません。</div></div>';
+ return '<div class="card2"><h3>重複チェック('+G.length+'組)</h3><div class="sub" style="margin-bottom:8px">作業依頼番号・顧客案件番号・店舗と件名が同じ案件です。先頭が残す案件(書類が多い順)で、チェックした案件を削除できます。</div>'+
+  G.map(function(a){return '<div class="gml" style="margin-bottom:10px">'+a.map(function(o,i){return '<label><input type="checkbox" class="dpc" data-id="'+e(o.id)+'"'+(i?" checked":"")+'><span style="min-width:0"><div class="s">'+(i?"":"【残す】")+e(o.no)+' ／ '+e(title(o))+'</div><div class="sub">'+e(o.subject||"")+' ／ '+e(ST[o.status])+' ／ 書類'+(o.files||[]).length+'枚 ／ '+e(o.reqNo||"番号なし")+'</div></span></label>'}).join("")+'</div>'}).join("")+
+  '<button class="btn sm" data-a="dupdel">チェックした案件を削除</button></div>';
+}
 function pgDocs(){
  var L=S.orders.filter(function(o){return o.status!==8}).map(function(o){var d=docState(o);return {o:o,d:d,n:(d.order?1:0)+(d.report?1:0)}});
  var c={all:L.length,both:L.filter(function(x){return x.n===2}).length,one:L.filter(function(x){return x.n===1}).length,none:L.filter(function(x){return x.n===0}).length};
  c.miss=c.one+c.none;
  var f=S.docf||"all",rows=L.filter(function(x){return f==="all"||(f==="both"&&x.n===2)||(f==="miss"&&x.n<2)||(f==="one"&&x.n===1)||(f==="none"&&x.n===0)});
  rows.sort(function(a,b){return (a.n-b.n)||String(b.o.receivedAt||b.o.createdAt).localeCompare(String(a.o.receivedAt||a.o.createdAt))});
- var h='<div class="pghead"><h2 class="pt">書類の確認</h2><div class="pgact">'+(S.mode==="server"?'<label class="btn out" style="cursor:pointer">作業依頼書PDFを追加<input type="file" id="wpf" accept=".pdf,.zip,application/pdf" multiple hidden></label>':"")+'</div></div>';
+ var h='<div class="pghead"><h2 class="pt">書類の確認</h2><div class="pgact"><button class="btn out" data-a="dupchk">重複チェック</button>'+(S.mode==="server"?'<label class="btn out" style="cursor:pointer">作業依頼書PDFを追加<input type="file" id="wpf" accept=".pdf,.zip,application/pdf" multiple hidden></label>':"")+'</div></div>';
+ if(S.dupOn)h+=dupCard();
  h+='<div class="sub" style="margin-bottom:10px">作業依頼書と作業完了報告書の2枚が、案件に紐づいているかを一覧で確認できます(キャンセル以外のすべての案件が対象)。行をクリックすると案件が開き、2枚を画像で見られます。</div>';
  h+='<div class="grid alerts">'+
   '<button class="alert'+(f==="all"?" warm":"")+'" data-a="docf" data-f="all"><b>'+c.all+'</b><span>すべて</span></button>'+
@@ -1888,6 +1915,13 @@ document.addEventListener("click",async function(ev){
   case "discard":S.queue=[];closeDlg();toast("破棄しました(登録していません)");break;
   case "savejob":await saveJob();break;
   case "advance":{var sel=$("#f-status"),v=Number(sel.value);if(v<7){sel.value=v+1;toast("状態を「"+ST[v+1]+"」にしました。保存で確定します")}break}
+  case "dupchk":S.dupOn=!S.dupOn;render();if(S.dupOn&&!dupGroups().length)toast("重複している案件はありません");break;
+  case "dupdel":{
+   var ids=Array.prototype.filter.call(document.querySelectorAll(".dpc"),function(c){return c.checked}).map(function(c){return c.dataset.id});
+   if(!ids.length){toast("削除する案件をチェックしてください");break}
+   if(t.dataset.armed!=="1"){t.dataset.armed="1";t.textContent="もう一度押すと "+ids.length+" 件を削除";t.classList.add("pri");setTimeout(function(){if(t.isConnected){t.dataset.armed="";t.textContent="チェックした案件を削除";t.classList.remove("pri")}},4000);break}
+   var n=0;for(var i=0;i<ids.length;i++){try{await Store.delOrder(ids[i]);n++}catch(x){}}
+   await reload(true);render();toast(n+" 件削除しました");break}
   case "straydel":{
    var ids=Array.prototype.filter.call(document.querySelectorAll(".stc"),function(c){return c.checked}).map(function(c){return c.dataset.id});
    if(!ids.length){toast("削除する案件をチェックしてください");break}
