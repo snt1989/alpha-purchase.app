@@ -13,6 +13,11 @@ const body = "下記よりダウンロード\n「作業依頼書2610-02161-3067.
   // 2) 確認ページ → フォーム送信(POST) → PDF
   globalThis.fetch = async (u, o) => (o && o.method === "POST" ? resp(pdf, "application/pdf", u) : resp('<form action="/go" method="post"><input type="hidden" name="k" value="v"></form>', "text/html", u));
   r = await fetchLinkedPdfs(body); assert.strictEqual(r.files.length, 1);
+  // 2b) 確認ページ → /auth/<メール> → /download/<メール> → PDF(メールアドレスで本人確認)
+  calls = [];
+  globalThis.fetch = async (u) => { calls.push(u); return /\/download\/info%40sanoh-ltd\.jp$/.test(u) ? resp(pdf, "application/pdf", u) : resp("<html>確認</html>", "text/html", u) };
+  r = await fetchLinkedPdfs(body, false, ["info@sanoh-ltd.jp"]);
+  assert.strictEqual(r.files.length, 1); assert.ok(calls.some((c) => /\/auth\/info%40sanoh-ltd\.jp$/.test(c)));
   // 3) リンクがそのままPDF
   globalThis.fetch = async (u) => resp(pdf, "application/pdf", u);
   r = await fetchLinkedPdfs(body); assert.strictEqual(r.files.length, 1);

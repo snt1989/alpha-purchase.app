@@ -8,6 +8,13 @@ const { ingest, K } = require("./_ingest");
 const { processAttachments } = require("./_work");
 const { fetchLinkedPdfs } = require("./_link");
 
+// 受信者のメールアドレス(リンク先の本人確認用)。送信側が渡す to と、LINK_EMAIL(環境変数)を使う
+function linkEmails(b) {
+  const out = [];
+  const add = (x) => { const m = String(x || "").match(/[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/g) || []; m.forEach((e) => { e = e.toLowerCase(); if (out.indexOf(e) < 0) out.push(e) }) };
+  add(b.to); add(process.env.LINK_EMAIL);
+  return out.slice(0, 3);
+}
 module.exports = async (req, res) => {
   res.setHeader("Cache-Control", "no-store");
   if (req.method !== "POST") return res.status(405).json({ ok: false, error: "POST only" });
@@ -35,7 +42,7 @@ module.exports = async (req, res) => {
   try {
     // 添付がなく本文にダウンロードリンク(kintone)がある場合は、リンク先のPDFを取得して作業依頼書として読む
     if (!atts.length && /mailer\.kintoneapp\.com/.test(mail.body)) {
-      const lk = await fetchLinkedPdfs(mail.body, b.debugLink === true);
+      const lk = await fetchLinkedPdfs(mail.body, b.debugLink === true, linkEmails(b));
       linkDiag = lk.diag;
       lk.files.forEach((f) => atts.push(f));
     }

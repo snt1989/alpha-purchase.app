@@ -36,7 +36,7 @@ function run_(stat) {
       // パスワード通知だけのメールは単独では送らない(添付メールを処理するときに前後のメールとして読む)
       if (!atts.length && /パスワード|password|解凍/i.test(m.getSubject() + body.slice(0, 400)) && body.length < 2000) return;
       const payload = {
-        messageId: m.getId(), from: m.getFrom(), subject: m.getSubject(), date: m.getDate().toISOString(), body: body.slice(0, 20000),
+        messageId: m.getId(), from: m.getFrom(), to: m.getTo(), subject: m.getSubject(), date: m.getDate().toISOString(), body: body.slice(0, 20000),
         attachments: atts.map(function (a) { return { name: a.getName(), b64: Utilities.base64Encode(a.getBytes()) }; }),
         pwTexts: atts.length ? neighbors(m) : []
       };

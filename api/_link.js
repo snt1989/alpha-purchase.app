@@ -9,7 +9,8 @@ async function get(url, opt) {
   try {
     const r = await fetch(url, Object.assign({ redirect: "follow", signal: ac.signal, headers: Object.assign({ "User-Agent": UA, Accept: "application/pdf,text/html,*/*" }, (opt && opt.headers) || {}) }, opt || {}));
     const buf = new Uint8Array(await r.arrayBuffer());
-    return { status: r.status, ct: String(r.headers.get("content-type") || ""), url: r.url || url, data: buf.length > MAX ? null : buf, big: buf.length > MAX, cd: String(r.headers.get("content-disposition") || "") };
+    const sc = typeof r.headers.getSetCookie === "function" ? r.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ") : "";
+    return { cookie: sc, status: r.status, ct: String(r.headers.get("content-type") || ""), url: r.url || url, data: buf.length > MAX ? null : buf, big: buf.length > MAX, cd: String(r.headers.get("content-disposition") || "") };
   } finally { clearTimeout(t); }
 }
 const abs = (h, base) => { try { return new URL(h.replace(/&amp;/g, "&"), base).href } catch (e) { return "" } };
@@ -37,7 +38,7 @@ function forms(html, base) {
   return out;
 }
 
-async function fetchLinkedPdfs(body, debug) {
+async function fetchLinkedPdfs(body, debug, emails) {
   const urls = []; const seen = {};
   (String(body || "").match(/https:\/\/mailer\.kintoneapp\.com\/[^\s"'<>)）」]+/g) || []).forEach((u) => { if (!seen[u]) { seen[u] = 1; urls.push(u) } });
   const names = []; String(body || "").replace(/「([^」\n]+\.pdf)」/gi, (_, n) => { names.push(n) });
@@ -56,20 +57,19 @@ async function fetchLinkedPdfs(body, debug) {
       else if (r.data && /html|text/i.test(r.ct)) {
         const html = new TextDecoder("utf-8").decode(r.data);
         d.head = html.replace(/\s+/g, " ").slice(0, 300);
-        if (debug) {
-          d.chunks = [];
-          const cs = Array.from(new Set(html.match(/\/_next\/static\/chunks\/[A-Za-z0-9_\-]+\.js/g) || [])).slice(0, 30);
-          for (const c of cs) {
-            try {
-              const x = await get(new URL(c, r.url).href); const js = new TextDecoder().decode(x.data || new Uint8Array());
-              const hit = Array.from(new Set(js.match(/["'`]\/(?:api|next-web\/api|v\d)[^"'`\s]{0,120}["'`]/g) || [])).slice(0, 15);
-              const ctx = []; let m; const re = /.{0,160}(?:email|mailAddress|download)[A-Za-z]*.{0,160}/gi;
-              while ((m = re.exec(js)) && ctx.length < 6) ctx.push(m[0].replace(/\s+/g, " "));
-              if (hit.length || ctx.length) d.chunks.push({ c, hit, ctx });
-            } catch (e) { d.chunks.push({ c, error: String(e.message || e).slice(0, 80) }) }
-          }
+        // kMailer: 確認ページで受信者のメールアドレスを入力 → /auth/<email> → /download/<email>
+        const base = r.url.replace(/\/confirm\/?(\?.*)?$/, "");
+        for (const em of (emails || []).slice(0, 3)) {
+          if (got) break;
+          const enc = encodeURIComponent(em);
+          const a = await tryUrl(base + "/auth/" + enc, null, "auth");
+          if (isPdf(a.data)) { got = a; break }
+          const hd = a.cookie ? { Cookie: a.cookie } : {};
+          const x = await tryUrl(base + "/download/" + enc, { headers: hd }, "download");
+          if (isPdf(x.data)) { got = x; break }
+          if (debug && x.data && /html|json|text/i.test(x.ct)) d.dl = new TextDecoder().decode(x.data).replace(/\s+/g, " ").slice(0, 600);
         }
-        for (const c of candidates(html, r.url)) { const x = await tryUrl(c, null, "link"); if (isPdf(x.data)) { got = x; break } }
+        if (!got) for (const c of candidates(html, r.url)) { const x = await tryUrl(c, null, "link"); if (isPdf(x.data)) { got = x; break } }
         if (!got) for (const f of forms(html, r.url)) {
           const x = f.method === "post" ? await tryUrl(f.url, { method: "POST", body: f.params, headers: { "Content-Type": "application/x-www-form-urlencoded" } }, "form") : await tryUrl(f.url + (f.params.toString() ? (f.url.indexOf("?") < 0 ? "?" : "&") + f.params : ""), null, "form");
           if (isPdf(x.data)) { got = x; break }
