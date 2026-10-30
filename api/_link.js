@@ -1,5 +1,5 @@
 // メール本文にある「作業依頼書のダウンロードリンク」(kintone メール配信など)から PDF を取得する。
-// ページの作りが変わっても動くよう、PDFならそのまま、HTMLなら中のリンク・フォームをたどる。取得できなかった理由(diag)も返す。
+// リンクが直接PDFのときだけ取得する。確認ページやログインが要るリンクは自動では開かず、理由(diag)だけ返す。
 const MAX = 15 * 1048576;
 const UA = "Mozilla/5.0 (compatible; AlphaOrderNavi/1.0)";
 const isPdf = (u8) => u8 && u8.length > 4 && u8[0] === 0x25 && u8[1] === 0x50 && u8[2] === 0x44 && u8[3] === 0x46;
@@ -13,32 +13,7 @@ async function get(url, opt) {
     return { cookie: sc, status: r.status, ct: String(r.headers.get("content-type") || ""), url: r.url || url, data: buf.length > MAX ? null : buf, big: buf.length > MAX, cd: String(r.headers.get("content-disposition") || "") };
   } finally { clearTimeout(t); }
 }
-const abs = (h, base) => { try { return new URL(h.replace(/&amp;/g, "&"), base).href } catch (e) { return "" } };
-
-function candidates(html, base) {
-  const out = [];
-  const add = (u) => { if (u && /^https?:/.test(u) && out.indexOf(u) < 0 && u !== base) out.push(u) };
-  let m; const re = /href\s*=\s*["']([^"']+)["']/gi;
-  const links = []; while ((m = re.exec(html))) links.push(abs(m[1], base));
-  links.filter((u) => /download|\.pdf(\?|$)|attachment|file/i.test(u)).forEach(add);
-  add(base.replace(/\/confirm\/?(\?.*)?$/, "/download"));
-  add(base.replace(/\/confirm\/?(\?.*)?$/, ""));
-  return out.slice(0, 6);
-}
-function forms(html, base) {
-  const out = []; let m; const re = /<form\b([^>]*)>([\s\S]*?)<\/form>/gi;
-  while ((m = re.exec(html)) && out.length < 3) {
-    const a = m[1], inner = m[2];
-    const act = (a.match(/action\s*=\s*["']([^"']*)["']/i) || [])[1];
-    const method = ((a.match(/method\s*=\s*["']([^"']*)["']/i) || [])[1] || "get").toLowerCase();
-    const p = new URLSearchParams(); let i; const ri = /<input\b([^>]*)>/gi;
-    while ((i = ri.exec(inner))) { const n = (i[1].match(/name\s*=\s*["']([^"']*)["']/i) || [])[1]; const v = (i[1].match(/value\s*=\s*["']([^"']*)["']/i) || [])[1]; if (n) p.append(n, (v || "").replace(/&amp;/g, "&")) }
-    out.push({ url: abs(act || base, base), method, params: p });
-  }
-  return out;
-}
-
-async function fetchLinkedPdfs(body, debug, emails) {
+async function fetchLinkedPdfs(body) {
   const urls = []; const seen = {};
   (String(body || "").match(/https:\/\/mailer\.kintoneapp\.com\/[^\s"'<>)）」]+/g) || []).forEach((u) => { if (!seen[u]) { seen[u] = 1; urls.push(u) } });
   const names = []; String(body || "").replace(/「([^」\n]+\.pdf)」/gi, (_, n) => { names.push(n) });
@@ -54,30 +29,7 @@ async function fetchLinkedPdfs(body, debug, emails) {
       };
       let r = await tryUrl(u, null, "open"), got = null;
       if (isPdf(r.data)) got = r;
-      else if (r.data && /html|text/i.test(r.ct)) {
-        const html = new TextDecoder("utf-8").decode(r.data);
-        d.head = html.replace(/\s+/g, " ").slice(0, 300);
-        // kMailer: 確認ページで受信者のメールアドレスを入力 → /auth/<email> → /download/<email>
-        const base = r.url.replace(/\/confirm\/?(\?.*)?$/, "");
-        for (const em of (emails || []).slice(0, 3)) {
-          if (got) break;
-          const enc = encodeURIComponent(em);
-          const a = await tryUrl(base + "/auth/" + enc, null, "auth");
-          if (isPdf(a.data)) { got = a; break }
-          const hd = a.cookie ? { Cookie: a.cookie } : {};
-          const x = await tryUrl(base + "/download/" + enc, { headers: hd }, "download");
-          if (isPdf(x.data)) { got = x; break }
-          if (debug && x.data && /html|json|text/i.test(x.ct)) {
-            const h2 = new TextDecoder().decode(x.data);
-            d.dl = { title: (h2.match(/<title>([^<]*)/) || [])[1], text: h2.replace(/<script[\s\S]*?<\/script>/g, "").replace(/<style[\s\S]*?<\/style>/g, "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").slice(0, 500), flight: (h2.match(/self\.__next_f\.push\(\[1,"[^\n]{0,400}(?:error|Error|url|Url|token|blob|pdf)[^\n]{0,400}/g) || []).slice(0, 5).map((z) => z.slice(0, 700)) };
-          }
-        }
-        if (!got) for (const c of candidates(html, r.url)) { const x = await tryUrl(c, null, "link"); if (isPdf(x.data)) { got = x; break } }
-        if (!got) for (const f of forms(html, r.url)) {
-          const x = f.method === "post" ? await tryUrl(f.url, { method: "POST", body: f.params, headers: { "Content-Type": "application/x-www-form-urlencoded" } }, "form") : await tryUrl(f.url + (f.params.toString() ? (f.url.indexOf("?") < 0 ? "?" : "&") + f.params : ""), null, "form");
-          if (isPdf(x.data)) { got = x; break }
-        }
-      }
+      else if (r.data && /html|text/i.test(r.ct)) d.head = new TextDecoder("utf-8").decode(r.data).replace(/\s+/g, " ").slice(0, 200); // ログインや確認が要るページは自動では開かない
       if (got) { files.push({ name: names[k] || names[0] || "作業依頼書.pdf", data: got.data }); d.ok = true }
     } catch (e) { d.error = String(e.message || e).slice(0, 120) }
   }
