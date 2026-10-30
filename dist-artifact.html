@@ -130,6 +130,13 @@ details summary{cursor:pointer;font-weight:700;font-size:13px}
 .phc{border:1px solid var(--line);border-radius:10px;padding:6px;display:flex;flex-direction:column;gap:5px;background:var(--bg)}
 .phc img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:6px;cursor:zoom-in;background:#0001}
 .phc select,.phc input{font:inherit;font-size:12.5px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);width:100%;min-width:0}
+.docs{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+.docs .doc{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--surface);display:flex;flex-direction:column;min-width:0}
+.docs .dh{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 12px;border-bottom:1px solid var(--line);background:var(--bg2,#0000000a)}
+.docs .dh b{font-size:13px}.docs .dh .sp{flex:1}
+.docs .dbody{padding:8px;display:flex;flex-direction:column;gap:8px;max-height:560px;overflow:auto;background:#8884}
+.docs .dbody canvas{width:100%;height:auto;border-radius:6px;background:#fff;box-shadow:0 1px 4px #0003;cursor:zoom-in}
+.docs .dempty{padding:26px 12px;text-align:center;color:var(--mute,#888);font-size:13px}
 .pvw{position:fixed;inset:0;z-index:95;background:#000d;display:flex;flex-direction:column}
 .pvw .pb{display:flex;align-items:center;gap:8px;padding:10px 14px;color:#fff;flex-wrap:wrap}
 .pvw .pb b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:50vw}
@@ -678,6 +685,18 @@ details summary{cursor:pointer;font-weight:700;font-size:13px}
   /* ---------- 作業依頼書(PDF)の読み取り ----------
      アルファパーチェスの「作業依頼書」(+作業完了報告書)の書式。PDFから取り出した文字(行ごと、セルの区切りはタブ)を読む */
   function isWorkOrder(text) { return /作業依頼書/.test(text) && /作業依頼番号/.test(text); }
+  // 作業完了報告書(依頼元が案件ごとに配る様式。案件番号・店舗コード・物件名・住所・案件名があらかじめ入っている)
+  function isCompletionReport(text) { var t = String(text || ""); return !isWorkOrder(t) && /^\s*作業完了報告書/.test(t) && /案件番号\s*[\t ]*[0-9A-Za-z\-]+\s*[\t ]*\/\s*[\t ]*[0-9A-Za-z\-]+/.test(t); }
+  function parseCompletionReport(text) {
+    var t = half(String(text || "")).replace(/\r\n?/g, "\n"), m, o = { reqNo: "", caseNo: "", property: "", address: "", subject: "", branch: "", storeCode: "" };
+    if ((m = /案件番号\s*[\t ]*([0-9A-Za-z\-]+)\s*[\t ]*\/\s*[\t ]*([0-9A-Za-z\-]+)/.exec(t))) { o.reqNo = m[1]; o.caseNo = m[2]; }
+    if ((m = /物件名\s*\t\s*([^\t\n]+)/.exec(t))) o.property = m[1].trim();
+    if ((m = /住所\s*\t\s*([^\t\n]+)/.exec(t))) o.address = m[1].trim();
+    if ((m = /案件名\s*\t?\s*([^\t\n]+)/.exec(t))) o.subject = m[1].trim();
+    if ((m = /\n\s*([^\t\n]{2,12}(?:支店|営業所|支社|事業部))\s*\n/.exec(t.split("案件番号")[0] + "\n"))) o.branch = m[1].trim();
+    if ((m = /\n\s*([A-Z]{1,4}-\d{3,})\s*\t/.exec(t))) o.storeCode = m[1];
+    return o;
+  }
   function parseWorkOrder(text) {
     var t = half(String(text || "")).replace(/\r\n?/g, "\n");
     var lines = t.split("\n").map(function (l) { return l.replace(/[  ]+$/, ""); });
@@ -814,7 +833,7 @@ details summary{cursor:pointer;font-weight:700;font-size:13px}
   ];
 
   return {
-    STATUS: STATUS, KIND: KIND, extractPasswords: extractPasswords, CLIENT: CLIENT, kindOf: kindOf, isWorkOrder: isWorkOrder, parseWorkOrder: parseWorkOrder, buildWorkPrompt: buildWorkPrompt, normalizeWork: normalizeWork, makeWorkJob: makeWorkJob, workKey: workKey, OWN_DEFAULT: OWN_DEFAULT, SAMPLES: SAMPLES,
+    STATUS: STATUS, KIND: KIND, extractPasswords: extractPasswords, CLIENT: CLIENT, kindOf: kindOf, isWorkOrder: isWorkOrder, isCompletionReport: isCompletionReport, parseCompletionReport: parseCompletionReport, parseWorkOrder: parseWorkOrder, buildWorkPrompt: buildWorkPrompt, normalizeWork: normalizeWork, makeWorkJob: makeWorkJob, workKey: workKey, OWN_DEFAULT: OWN_DEFAULT, SAMPLES: SAMPLES,
     half: half, todayJst: todayJst, addDays: addDays, dateOnly: dateOnly, parseDate: parseDate,
     parseEml: parseEml, sniffHeaders: sniffHeaders, parseFrom: parseFrom, decodeHeader: decodeHeader,
     heuristic: heuristic, buildPrompt: buildPrompt, pickJson: pickJson, normalizeExtract: normalizeExtract,
@@ -1026,17 +1045,18 @@ async function checkNew(){
 }
 
 function b64Of(file){return new Promise(function(res,rej){var r=new FileReader();r.onload=function(){res(String(r.result).split(",")[1]||"")};r.onerror=function(){rej(new Error("ファイルを読めませんでした"))};r.readAsDataURL(file)})}
-async function workUpload(files){
+async function workUpload(files,keepId){
  if(!files.length)return;var msg=[];S.busy=true;
  for(var i=0;i<files.length;i++){
   var f=files[i];toast("読み込み中… "+f.name);
   try{
    var b64=await b64Of(f),r=await post("/api/workpdf",{name:f.name,b64:b64}),x=(r.results||[])[0]||{};
    if(x.code==="no_password"||/password/i.test(x.error||"")){var pw=window.prompt(f.name+" のパスワードを入力してください");if(pw){r=await post("/api/workpdf",{name:f.name,b64:b64,password:pw});x=(r.results||[])[0]||{}}}
-   msg.push(x.state==="registered"?f.name+": 新規登録 "+x.no:x.state==="merged"?f.name+": "+x.no+" の内容を更新しました":x.state==="duplicate"?f.name+": 登録済み("+x.no+")":x.state==="not_work_order"?f.name+": 作業依頼書の書式ではありません":f.name+": 読み込めませんでした"+(x.error?"("+x.error+")":""));
+   msg.push(x.state==="registered"?f.name+": 新規登録 "+x.no:x.state==="merged"?f.name+": "+x.no+" の内容を更新しました":x.state==="attached"?f.name+": "+x.no+" に作業完了報告書を追加しました":x.state==="provisional"?f.name+": "+x.no+" を仮登録しました(作業依頼書が届くと確定)":x.state==="duplicate"?f.name+": 登録済み("+x.no+")":x.state==="not_work_order"?f.name+": 作業依頼書の書式ではありません":f.name+": 読み込めませんでした"+(x.error?"("+x.error+")":""));
   }catch(err){msg.push(f.name+": "+(err.message||"失敗"))}
  }
  S.busy=false;await reload(true);render();toast(msg.join(" ／ "));
+ if(keepId){var nj=S.orders.filter(function(x){return x.id===keepId})[0];if(nj)openJob(nj)}
 }
 function pgHome(){
  var O=S.orders,mon=today().slice(0,7);
@@ -1395,6 +1415,42 @@ function pgSet(){
 function itemRow(it){it=it||{};return '<tr><td><input type="text" class="n" value="'+e(it.name||"")+'" placeholder="品名"></td><td><input type="text" class="s" value="'+e(it.spec||"")+'" placeholder="規格・型番"></td>'+
  '<td><input type="number" class="q" step="any" value="'+(it.qty==null?"":e(it.qty))+'"></td><td><input type="text" class="u" value="'+e(it.unit||"")+'"></td><td><input type="number" class="p" step="any" value="'+(it.price==null?"":e(it.price))+'"></td>'+
  '<td class="amt">'+(it.qty!=null&&it.price!=null?yen(it.qty*it.price):"")+'</td><td><button class="btn sm danger" data-a="delrow" title="削除">×</button></td></tr>'}
+/* ---- 書類(作業依頼書・作業完了報告書)を案件の中で画像のように見る ---- */
+var DOCK=[["order","作業依頼書"],["report","作業完了報告書"]];
+function docKind(f){return f.kind||(/報告|report/i.test((f.label||"")+(f.name||""))?"report":"order")}
+function docsSection(o){
+ var files=o.files||[],h='<div><b style="font-size:13px">書類</b> <span class="sub">(画像をクリックすると大きく表示)</span></div><div class="docs" id="docs">';
+ DOCK.forEach(function(d){
+  var idx=-1;files.forEach(function(f,i){if(idx<0&&docKind(f)===d[0]&&fileSrc(f))idx=i});
+  var f=idx>=0?files[idx]:null,up=S.mode==="server"?'<label class="btn sm out" style="cursor:pointer">'+(f?"差し替え":"PDFを追加")+'<input type="file" class="wpf2" accept=".pdf,.zip,application/pdf" hidden></label>':"";
+  h+='<div class="doc"><div class="dh"><b>'+d[1]+'</b>'+(f?'<span class="sub" title="'+e(f.name||"")+'">'+e(f.name||"")+'</span>':"")+'<span class="sp"></span>'+(f?'<button class="btn sm" data-a="pvopen" data-k="f" data-i="'+idx+'">拡大</button>':"")+up+'</div>'+
+   (f?'<div class="dbody" data-i="'+idx+'"><div class="dempty">読み込み中…</div></div>':'<div class="dempty">まだありません'+(d[0]==="report"?"<br>(メールに付いてきたら自動で入ります)":d[0]==="order"&&o.pdfLink?"<br>メールのリンクから開いて保存し、「PDFを追加」で読み込めます":"")+'</div>')+'</div>';
+ });
+ return h+'</div>';
+}
+var DOCC={};
+async function docPages(href){
+ if(DOCC[href])return DOCC[href];
+ await libs();
+ var r=await fetch(href,{credentials:"same-origin"});if(!r.ok)throw new Error("開けませんでした("+r.status+")");
+ var doc=await pdfDoc(await r.blob()),out=[];
+ for(var p=1;p<=Math.min(doc.numPages,4);p++){
+  var pg=await doc.getPage(p),vp=pg.getViewport({scale:1.6}),c=document.createElement("canvas");c.width=vp.width;c.height=vp.height;
+  await pg.render({canvasContext:c.getContext("2d"),viewport:vp}).promise;out.push(c.toDataURL("image/jpeg",0.85));
+ }
+ return (DOCC[href]=out);
+}
+async function renderDocs(o){
+ var box=$("#docs");if(!box)return;
+ var bodies=box.querySelectorAll(".dbody");
+ for(var i=0;i<bodies.length;i++){
+  var b=bodies[i],f=(o.files||[])[Number(b.dataset.i)],href=f&&fileSrc(f);if(!href)continue;
+  try{
+   var pages=await docPages(href);if(!b.isConnected)return;
+   b.innerHTML=pages.map(function(u,k){return '<img src="'+u+'" alt="'+e((f.name||"")+" "+(k+1)+"ページ")+'" data-a="pvopen" data-k="f" data-i="'+b.dataset.i+'" style="width:100%;height:auto;border-radius:6px;background:#fff;box-shadow:0 1px 4px #0003;cursor:zoom-in">'}).join("");
+  }catch(x){if(b.isConnected)b.innerHTML='<div class="dempty">表示できませんでした('+e(x.message||x)+')<br>「拡大」からご覧ください</div>'}
+ }
+}
 function openJob(o,opt){
  opt=opt||{};var draft=!!opt.draft;S.dlg={job:o,draft:draft,key:opt.key||""};
  var staff=S.settings.staff||[];
@@ -1426,7 +1482,8 @@ function openJob(o,opt){
   '<label class="wide">工期・納期の記載<input type="text" id="f-sched" value="'+e(o.schedule||"")+'"></label>'+
   '<label class="wide">社内メモ<textarea id="f-note" rows="2">'+e(o.note)+'</textarea></label>'+
   '<label class="chk"><input type="checkbox" id="f-urg"'+(o.urgent?" checked":"")+'> 至急</label><label class="chk"><input type="checkbox" id="f-rev"'+(o.needsReview?" checked":"")+'> 要確認(内容を確認したらチェックを外す)</label></div>';
- if((o.files||[]).length)h+='<div class="row2"><b style="font-size:13px">添付</b>'+o.files.map(function(f,i){var href=f.asset?"/_blob/"+f.asset:f.url||"";return href?'<button class="btn sm" data-a="pvopen" data-k="f" data-i="'+i+'">'+e(f.name||"PDF")+' をプレビュー</button>':'<span class="pill" title="サイズが大きいため保存されていません">'+e(f.name||"")+'</span>'}).join("")+'</div>';
+  if(!draft&&(o.kind==="work"||o.reqNo||(o.files||[]).length))h+=docsSection(o);
+ else if((o.files||[]).length)h+='<div class="row2"><b style="font-size:13px">添付</b>'+o.files.map(function(f,i){var href=f.asset?"/_blob/"+f.asset:f.url||"";return href?'<button class="btn sm" data-a="pvopen" data-k="f" data-i="'+i+'">'+e(f.name||"PDF")+' をプレビュー</button>':'<span class="pill" title="サイズが大きいため保存されていません">'+e(f.name||"")+'</span>'}).join("")+'</div>';
  if(!draft)h+=photoSection(o);
  h+='<h3 style="font-family:var(--f-head);font-size:15px;margin:0">見積明細</h3><div class="scroll"><table class="items" id="items"><thead><tr><th>品名・作業項目</th><th>規格・型番</th><th>数量</th><th>単位</th><th>単価(税抜)</th><th>金額</th><th></th></tr></thead><tbody>'+(o.items&&o.items.length?o.items:[{}]).map(itemRow).join("")+'</tbody></table></div>'+
   '<div class="row2"><button class="btn sm" data-a="addrow">行を追加</button><span class="sp"></span></div><div class="sum" id="sum"></div>';
@@ -1434,6 +1491,7 @@ function openJob(o,opt){
  if((o.history||[]).length)h+='<div class="hist"><b style="color:var(--ink)">履歴</b>'+o.history.slice().reverse().map(function(x){return '<div>'+e(new Date(x.at).toLocaleString("ja-JP",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"}))+'　'+e(x.text)+'</div>'}).join("")+'</div>';
  h+='<div class="acts"><span class="row2">'+(draft?'<button class="btn danger" data-a="discard">破棄</button>':'<button class="btn danger" data-a="deljob">削除</button>')+'</span><span class="row2"><button class="btn" data-a="closedlg">閉じる</button>'+(!draft?'<button class="btn out" data-a="advance">次の状態へ</button>':"")+'<button class="btn pri" data-a="savejob">'+(draft?"登録する":"保存")+'</button></span></div></div></div>';
  $("#layer").innerHTML=h;recalc();
+ if(!draft)renderDocs(o);
 }
 function readRows(){
  return Array.prototype.map.call(document.querySelectorAll("#items tbody tr"),function(tr){
@@ -1836,7 +1894,7 @@ document.addEventListener("change",function(ev){
  else if(t.id==="fsp"){S.f.sp=t.value;renderList()}
  else if(t.id==="fkind"){S.f.kind=t.value;renderList()}
  else if(t.id==="fi"){readFile(t.files[0]);t.value=""}
- else if(t.id==="wpf"){workUpload(Array.prototype.slice.call(t.files));t.value=""}
+ else if(t.id==="wpf"||(t.classList&&t.classList.contains("wpf2"))){var fl=Array.prototype.slice.call(t.files),keep=S.dlg&&S.dlg.job&&S.dlg.job.id;t.value="";workUpload(fl,keep)}
  else if(t.id==="phi"){var fl3=Array.prototype.slice.call(t.files);t.value="";addPhotos(fl3)}
  else if(t.id==="fzi"){var fl=Array.prototype.slice.call(t.files);t.value="";importFiles(fl)}
  else if(t.id==="zpwkeep"){zpwSet(t.checked?($("#zpw")||{}).value||"":"")}

@@ -459,6 +459,18 @@
   /* ---------- 作業依頼書(PDF)の読み取り ----------
      アルファパーチェスの「作業依頼書」(+作業完了報告書)の書式。PDFから取り出した文字(行ごと、セルの区切りはタブ)を読む */
   function isWorkOrder(text) { return /作業依頼書/.test(text) && /作業依頼番号/.test(text); }
+  // 作業完了報告書(依頼元が案件ごとに配る様式。案件番号・店舗コード・物件名・住所・案件名があらかじめ入っている)
+  function isCompletionReport(text) { var t = String(text || ""); return !isWorkOrder(t) && /^\s*作業完了報告書/.test(t) && /案件番号\s*[\t ]*[0-9A-Za-z\-]+\s*[\t ]*\/\s*[\t ]*[0-9A-Za-z\-]+/.test(t); }
+  function parseCompletionReport(text) {
+    var t = half(String(text || "")).replace(/\r\n?/g, "\n"), m, o = { reqNo: "", caseNo: "", property: "", address: "", subject: "", branch: "", storeCode: "" };
+    if ((m = /案件番号\s*[\t ]*([0-9A-Za-z\-]+)\s*[\t ]*\/\s*[\t ]*([0-9A-Za-z\-]+)/.exec(t))) { o.reqNo = m[1]; o.caseNo = m[2]; }
+    if ((m = /物件名\s*\t\s*([^\t\n]+)/.exec(t))) o.property = m[1].trim();
+    if ((m = /住所\s*\t\s*([^\t\n]+)/.exec(t))) o.address = m[1].trim();
+    if ((m = /案件名\s*\t?\s*([^\t\n]+)/.exec(t))) o.subject = m[1].trim();
+    if ((m = /\n\s*([^\t\n]{2,12}(?:支店|営業所|支社|事業部))\s*\n/.exec(t.split("案件番号")[0] + "\n"))) o.branch = m[1].trim();
+    if ((m = /\n\s*([A-Z]{1,4}-\d{3,})\s*\t/.exec(t))) o.storeCode = m[1];
+    return o;
+  }
   function parseWorkOrder(text) {
     var t = half(String(text || "")).replace(/\r\n?/g, "\n");
     var lines = t.split("\n").map(function (l) { return l.replace(/[  ]+$/, ""); });
@@ -595,7 +607,7 @@
   ];
 
   return {
-    STATUS: STATUS, KIND: KIND, extractPasswords: extractPasswords, CLIENT: CLIENT, kindOf: kindOf, isWorkOrder: isWorkOrder, parseWorkOrder: parseWorkOrder, buildWorkPrompt: buildWorkPrompt, normalizeWork: normalizeWork, makeWorkJob: makeWorkJob, workKey: workKey, OWN_DEFAULT: OWN_DEFAULT, SAMPLES: SAMPLES,
+    STATUS: STATUS, KIND: KIND, extractPasswords: extractPasswords, CLIENT: CLIENT, kindOf: kindOf, isWorkOrder: isWorkOrder, isCompletionReport: isCompletionReport, parseCompletionReport: parseCompletionReport, parseWorkOrder: parseWorkOrder, buildWorkPrompt: buildWorkPrompt, normalizeWork: normalizeWork, makeWorkJob: makeWorkJob, workKey: workKey, OWN_DEFAULT: OWN_DEFAULT, SAMPLES: SAMPLES,
     half: half, todayJst: todayJst, addDays: addDays, dateOnly: dateOnly, parseDate: parseDate,
     parseEml: parseEml, sniffHeaders: sniffHeaders, parseFrom: parseFrom, decodeHeader: decodeHeader,
     heuristic: heuristic, buildPrompt: buildPrompt, pickJson: pickJson, normalizeExtract: normalizeExtract,

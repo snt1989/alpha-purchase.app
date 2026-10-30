@@ -84,21 +84,15 @@ const MAX_FILE_B64 = 950000; // Redis に保存するPDFの上限(base64で約70
 // 読み取った作業依頼 1件を登録。同じ作業依頼番号があれば重複として登録しない
 async function registerWork(w, file, ctx) {
   ctx = ctx || {};
-  if (w.reqNo) {
-    const flat = (await redis(["HGETALL", K.orders])) || [];
-    for (let i = 0; i + 1 < flat.length; i += 2) {
-      try { const o = JSON.parse(flat[i + 1]); if (o.reqNo === w.reqNo) return { state: "duplicate", job: o }; } catch (e) {}
-    }
-  }
-  const now0 = new Date().toISOString();
-  // メール本文だけで先に登録された案件(PDF待ち)があれば、新規にせずそこへ内容を反映する
+  const flat = (await redis(["HGETALL", K.orders])) || [];
+  const all = [];
+  for (let i = 0; i + 1 < flat.length; i += 2) { try { all.push(JSON.parse(flat[i + 1])); } catch (e) {} }
+  // 作業完了報告書から仮登録された案件(provisional)や、メール本文だけで先に登録された案件(PDF待ち)があれば、新規にせずそこへ内容を反映する
   let target = null;
-  if (w.caseNo) {
-    const flat2 = (await redis(["HGETALL", K.orders])) || [];
-    for (let i = 0; i + 1 < flat2.length && !target; i += 2) {
-      try { const o = JSON.parse(flat2[i + 1]); if (!o.reqNo && o.pdfLink && (o.caseNo === w.caseNo || String(o.subject || "").indexOf(w.caseNo) >= 0)) target = o; } catch (e) {}
-    }
-  }
+  if (w.reqNo) target = all.find((o) => o.provisional && o.reqNo === w.reqNo) || null;
+  if (!target && w.caseNo) target = all.find((o) => !o.reqNo && o.pdfLink && (o.caseNo === w.caseNo || String(o.subject || "").indexOf(w.caseNo) >= 0)) || null;
+  if (!target && w.reqNo) { const dup = all.find((o) => o.reqNo === w.reqNo); if (dup) return { state: "duplicate", job: dup }; }
+  const now0 = new Date().toISOString();
   const now = now0;
   const no = target ? target.no : (await nextNos(1))[0];
   const job = AP.makeWorkJob(w, { now, nextNo: () => no, source: ctx.source || "gmail", fileName: file && file.name, mail: ctx.mail || null, files: [] });
@@ -109,14 +103,15 @@ async function registerWork(w, file, ctx) {
     if (b64.length <= MAX_FILE_B64) {
       const fid = job.id + "-1";
       cmds.push(["SET", "ap:file:" + fid, b64], ["HSET", "ap:fmeta", fid, JSON.stringify({ id: fid, name: file.name, mime: "application/pdf", job: job.id, at: now })]);
-      job.files = [{ name: file.name, url: "/api/file?id=" + encodeURIComponent(fid) }];
-    } else job.files = [{ name: file.name }];
+      job.files = [{ name: file.name, url: "/api/file?id=" + encodeURIComponent(fid), label: "作業依頼書", kind: "order" }];
+    } else job.files = [{ name: file.name, label: "作業依頼書", kind: "order" }];
   }
   if (target) {
     // 既存の案件に上書き(番号・状態・履歴・写真などは引き継ぐ)
-    const keep = {}; ["id", "no", "status", "history", "photos", "createdAt", "receivedAt", "staff", "note"].forEach((k) => { if (target[k] !== undefined) keep[k] = target[k]; });
-    const merged = Object.assign({}, job, keep, { pdfLink: undefined });
-    merged.history = (target.history || []).concat({ at: now, text: "作業依頼書PDFを読み込んで内容を更新" });
+    const keep = {}; ["id", "no", "status", "history", "photos", "createdAt", "receivedAt", "staff", "note"].forEach((k) => { if (k === "receivedAt" && target.provisional) return; if (target[k] !== undefined) keep[k] = target[k]; });
+    const merged = Object.assign({}, job, keep, { pdfLink: undefined, provisional: undefined });
+    merged.files = (job.files || []).concat((target.files || []).filter((f) => f.kind === "report"));
+    merged.history = (target.history || []).concat({ at: now, text: target.provisional ? "作業依頼書を読み込んで内容を確定" : "作業依頼書PDFを読み込んで内容を更新" });
     cmds.push(["HSET", K.orders, target.id, JSON.stringify(merged)], ["INCR", K.ver("orders")]);
     if (w.reqNo) cmds.push(["HSET", K.mails, AP.workKey(w), JSON.stringify({ key: AP.workKey(w), at: now, state: "registered", from: job.customer, subject: "作業依頼書 " + w.reqNo + " " + (w.site || "") + " " + (w.subject || ""), jobs: [{ id: target.id, no: target.no }] })], ["INCR", K.ver("mails")]);
     await pipeline(cmds);
@@ -127,6 +122,40 @@ async function registerWork(w, file, ctx) {
   if (w.reqNo) cmds.push(["HSET", K.mails, AP.workKey(w), JSON.stringify({ key: AP.workKey(w), at: now, state: "registered", from: job.customer, subject: "作業依頼書 " + w.reqNo + " " + (w.site || "") + " " + (w.subject || ""), jobs: [{ id: job.id, no: job.no }] })], ["INCR", K.ver("mails")]);
   await pipeline(cmds);
   return { state: "registered", job };
+}
+
+/** 作業完了報告書(様式)を案件に付ける。案件番号が同じ案件があればそこへ、なければ仮の案件を作る(あとで作業依頼書が届いたら内容を確定する) */
+async function registerReport(rep, file, ctx) {
+  ctx = ctx || {};
+  const flat = (await redis(["HGETALL", K.orders])) || [];
+  const all = [];
+  for (let i = 0; i + 1 < flat.length; i += 2) { try { all.push(JSON.parse(flat[i + 1])); } catch (e) {} }
+  let o = all.find((x) => rep.reqNo && x.reqNo === rep.reqNo) || all.find((x) => rep.caseNo && x.caseNo === rep.caseNo) || all.find((x) => rep.caseNo && !x.reqNo && x.pdfLink && String(x.subject || "").indexOf(rep.caseNo) >= 0) || null;
+  const now = new Date().toISOString();
+  let created = false;
+  if (!o) {
+    const no = (await nextNos(1))[0];
+    o = AP.makeWorkJob({ client: AP.CLIENT, reqNo: rep.reqNo, caseNo: rep.caseNo, site: [rep.property, rep.branch].filter(Boolean).join(" "), address: rep.address, subject: rep.subject, storeCode: rep.storeCode, property: rep.property, category: "", detail: "", schedule: "", noWork: "", amountNote: "", dept: "", deptTel: "", signer: "", siteTel: "", workDate: "", quoteNo: "", requestedAt: now, missing: [] }, { now, nextNo: () => no, source: ctx.source || "gmail", mail: ctx.mail || null, files: [] });
+    o.provisional = true; o.needsReview = true;
+    o.issues = ["作業依頼書がまだ届いていません(作業完了報告書から仮登録。届くと内容が確定します)"];
+    o.history = [{ at: now, text: "作業完了報告書から仮登録(" + (file && file.name || "") + ")" }];
+    created = true;
+  }
+  const cmds = [];
+  const entry = { name: (file && file.name) || "作業完了報告書.pdf", label: "作業完了報告書", kind: "report" };
+  if (file && file.data) {
+    const b64 = Buffer.from(file.data).toString("base64");
+    if (b64.length <= MAX_FILE_B64) {
+      const fid = o.id + "-r";
+      cmds.push(["SET", "ap:file:" + fid, b64], ["HSET", "ap:fmeta", fid, JSON.stringify({ id: fid, name: entry.name, mime: "application/pdf", job: o.id, at: now })]);
+      entry.url = "/api/file?id=" + encodeURIComponent(fid);
+    }
+  }
+  o.files = (o.files || []).filter((f) => f.kind !== "report").concat(entry);
+  if (!created) o.history = (o.history || []).concat({ at: now, text: "作業完了報告書を追加" });
+  cmds.push(["HSET", K.orders, o.id, JSON.stringify(o)], ["INCR", K.ver("orders")]);
+  await pipeline(cmds);
+  return { state: created ? "provisional" : "attached", job: o };
 }
 
 /**
@@ -146,12 +175,20 @@ async function processAttachments(attachments, pwTexts, ctx) {
       } else if (/\.pdf$/i.test(a.name)) pdfs = [a];
       else continue;
       if (!pdfs.length) { results.push({ file: a.name, state: "no_pdf" }); continue; }
-      for (const p of pdfs) {
-        const text = await pdfText(p.data);
-        if (!AP.isWorkOrder(text)) { results.push({ file: p.name, state: "not_work_order", text: text.slice(0, 20000) }); continue; }
-        const w = AP.parseWorkOrder(text);
-        const r = await registerWork(w, p, Object.assign({}, ctx, { pwFrom }));
-        results.push({ file: p.name, state: r.state, no: r.job.no, reqNo: w.reqNo });
+      const docs = [];
+      for (const p of pdfs) docs.push({ p, text: await pdfText(p.data) });
+      // 作業依頼書を先に、作業完了報告書を後に処理する(同じ案件に結びつけるため)
+      docs.sort((x, y) => (AP.isWorkOrder(y.text) ? 1 : 0) - (AP.isWorkOrder(x.text) ? 1 : 0));
+      for (const { p, text } of docs) {
+        if (AP.isWorkOrder(text)) {
+          const w = AP.parseWorkOrder(text);
+          const r = await registerWork(w, p, Object.assign({}, ctx, { pwFrom }));
+          results.push({ file: p.name, state: r.state, no: r.job.no, reqNo: w.reqNo });
+        } else if (AP.isCompletionReport(text)) {
+          const rep = AP.parseCompletionReport(text);
+          const r = await registerReport(rep, p, ctx);
+          results.push({ file: p.name, state: r.state, no: r.job.no, reqNo: rep.reqNo });
+        } else results.push({ file: p.name, state: "not_work_order", text: text.slice(0, 20000) });
       }
     } catch (e) {
       results.push({ file: a.name, state: "error", error: String((e && e.message) || e).slice(0, 160), code: e && e.code });
@@ -160,4 +197,4 @@ async function processAttachments(attachments, pwTexts, ctx) {
   return results;
 }
 
-module.exports = { unzipPdfs, openZip, pdfText, registerWork, processAttachments };
+module.exports = { unzipPdfs, openZip, pdfText, registerWork, registerReport, processAttachments };
