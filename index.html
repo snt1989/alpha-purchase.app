@@ -145,6 +145,11 @@ details summary{cursor:pointer;font-weight:700;font-size:13px}
 .pvw iframe{width:min(1000px,100%);height:100%;border:0;background:#fff;border-radius:6px}
 .pvw img{max-width:100%;max-height:100%;object-fit:contain;border-radius:6px}
 .pvw .none{color:#fff;text-align:center;line-height:1.9}
+.srv{width:100%;border-collapse:collapse;font-size:13.5px}
+.srv th{width:34%;text-align:left;color:var(--muted);font-weight:500;padding:7px 8px 7px 0;vertical-align:top;border-bottom:1px dashed var(--line)}
+.srv td{padding:7px 0;vertical-align:top;border-bottom:1px dashed var(--line);word-break:break-all}
+.srv code{background:var(--bg);padding:1px 5px;border-radius:4px;font-size:12px}
+@media (max-width:600px){.srv th{width:40%}}
 .rpt{position:fixed;inset:0;z-index:80;background:#0008;overflow:auto;padding:14px}
 .rpt .bar{max-width:820px;margin:0 auto 10px;display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 .rpt .pg{max-width:820px;margin:0 auto;background:#fff;color:#111;padding:28px 32px;border-radius:6px;font-size:13.5px;line-height:1.6}
@@ -740,6 +745,8 @@ function pgSet(){
  h+='<div class="card2"><h3>自社名(取引先として扱わない名前)</h3><div class="sub" style="margin-bottom:8px">メールの宛先に書かれる自社名です。取引先と間違えないように使います(1行に1つ)。</div>'+
   '<textarea id="own" rows="4">'+e(own.join("\n"))+'</textarea><div style="margin-top:8px"><button class="btn sm pri" data-a="saveown">保存</button></div></div>';
  h+='<div class="card2"><h3>バックアップ</h3><div class="row2"><button class="btn" data-a="bkexp">データを書き出す(JSON)</button><button class="btn" data-a="bkimp">書き出したデータを読み込む</button><input type="file" id="bkf" accept=".json,application/json" hidden></div></div>';
+ h+='<div class="card2"><div class="acts"><h3 style="margin:0">サーバーの情報</h3>'+(S.mode==="server"?'<button class="btn sm" data-a="srvreload">再確認</button>':"")+'</div><div id="srv" style="margin-top:8px">'+(S.mode==="server"?'<div class="sub">確認しています…</div>':srvLocal())+'</div></div>';
+ if(S.mode==="server")setTimeout(loadSrv,0);
  if(S.mode==="server")h+='<div class="card2"><h3>アカウント</h3><button class="btn" data-a="logout">ログアウト</button></div>';
  return h;
 }
@@ -984,6 +991,34 @@ document.addEventListener("keydown",function(ev){
  if(!$("#pvw"))return;
  if(ev.key==="Escape"){ev.stopPropagation();closePreview()}else if(ev.key==="ArrowLeft")stepPreview(-1);else if(ev.key==="ArrowRight")stepPreview(1);
 },true);
+
+/* ---- サーバーの情報(設定画面) ---- */
+function srvRow(k,v,ok){return '<tr><th>'+k+'</th><td>'+(ok===true?'<span class="tag" style="color:var(--ok);border-color:var(--ok)">OK</span> ':ok===false?'<span class="tag rv">要確認</span> ':"")+v+'</td></tr>'}
+function srvLocal(){
+ return '<table class="srv"><tbody>'+srvRow("動作モード",S.mode==="artifact"?"公開ページ(Claude上・クラウド保存)":"お試しモード(このブラウザ内に保存)")+
+  srvRow("メールの自動取込",S.mode==="artifact"?"画面を開いている間だけ(Gmailコネクタ)":"使えません(サーバー版で利用できます)")+
+  srvRow("AI読み取り",S.flags.ai?"使えます":"使えません")+'</tbody></table>';
+}
+function fmtAt(x){return x?new Date(x).toLocaleString("ja-JP",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit",second:"2-digit"}):"—"}
+async function loadSrv(){
+ var box=$("#srv");if(!box)return;
+ try{
+  var r=await post("/api/status",{}),c=r.config,d=r.db,rt=r.runtime;
+  var ago="";if(r.inbound.lastAt){var m=Math.round((Date.now()-new Date(r.inbound.lastAt))/60000);ago=" ("+(m<1?"1分以内":m<90?m+"分前":m<2880?Math.round(m/60)+"時間前":Math.round(m/1440)+"日前")+")"}
+  box.innerHTML='<table class="srv"><tbody>'+
+   srvRow("データベース(Redis)",d.ok?"接続できました("+d.ms+"ms)":e(d.error||"接続できません"),d.ok)+
+   (d.ok?srvRow("保存件数","案件 "+d.orders+" 件 ／ 取込ログ "+d.mails+" 件 ／ 保存ファイル(PDF・写真) "+d.files+" 件"):"")+
+   srvRow("ログインパスワード",c.password?"設定済み":"未設定",c.password)+
+   srvRow("ログインの署名鍵(SESSION_SECRET)",c.sessionSecret?"設定済み":"未設定(パスワードから生成)",null)+
+   srvRow("メール取込の受信口",c.inboundToken?"有効":"INBOUND_TOKEN が未設定",c.inboundToken)+
+   srvRow("受信口のアドレス",'<code style="word-break:break-all">'+e(r.inbound.endpoint||"")+'</code>')+
+   srvRow("最後の取込",r.inbound.lastAt?e(fmtAt(r.inbound.lastAt))+ago+(r.inbound.lastSubject?"<br><span class=\"sub\">"+e(r.inbound.lastSubject)+"("+e(r.inbound.lastState)+")</span>":""):"まだありません",null)+
+   srvRow("AI読み取り",c.ai?"使えます(ANTHROPIC_API_KEY 設定済み)":"使えません(ANTHROPIC_API_KEY が未設定。簡易解析で動きます)",null)+
+   (rt.commit?srvRow("公開バージョン",(rt.commit?'<code>'+e(rt.commit)+'</code> ':"")+e(rt.commitMessage||"")+(rt.env?" ["+e(rt.env)+"]":"")):"")+
+   srvRow("サーバー","Node "+e(rt.node)+(rt.region?" ／ "+e(rt.region):"")+" ／ "+e(rt.host))+
+   srvRow("確認した時刻",e(fmtAt(r.at)))+'</tbody></table>';
+ }catch(x){box.innerHTML='<div class="sub" style="color:var(--bad)">確認できませんでした: '+e(x.message||x)+'</div>'}
+}
 function closeDlg(){S.dlg=null;$("#layer").innerHTML="";var rp=$("#rpt");if(rp)rp.remove();closePreview()}
 function newJob(){
  var n=new Date().toISOString();
@@ -1056,6 +1091,7 @@ document.addEventListener("click",async function(ev){
   case "rpsave":saveReport();break;
   case "rpprint":{await saveReport();window.print();break}
   case "rpai":reportAi(t);break;
+  case "srvreload":{var sb=$("#srv");if(sb)sb.innerHTML='<div class="sub">確認しています…</div>';loadSrv();break}
   case "addrow":{var tb=$("#items tbody");tb.insertAdjacentHTML("beforeend",itemRow());break}
   case "delrow":{var tr=t.closest("tr");if(document.querySelectorAll("#items tbody tr").length>1)tr.remove();else{Array.prototype.forEach.call(tr.querySelectorAll("input"),function(i){i.value=""})}recalc();break}
   case "closedlg":S.queue=[];closeDlg();break;

@@ -5,7 +5,7 @@
   "engines": { "node": ">=18" },
   "scripts": {
     "dev": "node dev/server.js",
-    "test": "node test/parse.test.js && node test/api.test.js && node test/inbound.test.js && node test/photo.test.js"
+    "test": "node test/parse.test.js && node test/api.test.js && node test/inbound.test.js && node test/photo.test.js && node test/status.test.js"
   },
   "dependencies": {
     "@zip.js/zip.js": "2.7.62",
