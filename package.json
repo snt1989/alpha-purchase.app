@@ -2,13 +2,16 @@
   "name": "alpha-purchase-orders",
   "private": true,
   "version": "1.1.0",
-  "engines": { "node": ">=18" },
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "dev": "node dev/server.js",
-    "test": "node test/parse.test.js && node test/api.test.js && node test/inbound.test.js && node test/photo.test.js && node test/status.test.js && node test/link.test.js && node test/workpdf.test.js && node test/docs.test.js && node test/docs.test.js B"
+    "test": "node test/parse.test.js && node test/api.test.js && node test/inbound.test.js && node test/photo.test.js && node test/status.test.js && node test/link.test.js && node test/workpdf.test.js && node test/split.test.js && node test/docs.test.js && node test/docs.test.js B"
   },
   "dependencies": {
     "@zip.js/zip.js": "2.7.62",
+    "pdf-lib": "^1.17.1",
     "pdfjs-dist": "3.11.174"
   }
 }

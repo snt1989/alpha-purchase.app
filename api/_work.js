@@ -56,9 +56,9 @@ async function openZip(bytes, candidates) {
 }
 
 // PDF → 行ごとの文字(同じ高さの文字を1行に、離れたセルはタブ区切り)。画面側と同じ作り
-async function pdfText(bytes) {
+async function pdfText(bytes, asPages) {
   const doc = await pdfjs().getDocument({ data: new Uint8Array(bytes), isEvalSupported: false, verbosity: 0 }).promise;
-  const out = [];
+  const out = [], pages = [];
   for (let p = 1; p <= doc.numPages; p++) {
     const tc = await (await doc.getPage(p)).getTextContent(), rows = [];
     tc.items.filter((i) => i.str && i.str.trim()).forEach((i) => {
@@ -74,9 +74,40 @@ async function pdfText(bytes) {
       out.push(line);
     }
     out.push("");
+    if (asPages) { pages.push(out.splice(0).join("\n")); }
   }
   try { await doc.destroy(); } catch (e) {}
-  return out.join("\n");
+  return asPages ? pages : out.join("\n");
+}
+
+// 作業依頼書と作業完了報告書が1つのPDFに合わさっている場合、種類ごとのPDFに分ける
+async function splitCombined(file) {
+  try {
+    const pages = await pdfText(file.data, true);
+    if (pages.length < 2) return [file];
+    const type = pages.map((t) => (AP.isWorkOrder(t) ? "order" : AP.isCompletionReport(t) ? "report" : ""));
+    const segs = []; // {type, pages[]}
+    pages.forEach((t, i) => {
+      const last = segs[segs.length - 1];
+      if (!type[i] || (last && last.type === type[i])) { if (last) last.pages.push(i); else segs.push({ type: "", pages: [i] }); }
+      else segs.push({ type: type[i], pages: [i] });
+    });
+    if (segs.length && !segs[0].type && segs[1]) { segs[1].pages = segs[0].pages.concat(segs[1].pages); segs.shift(); }
+    const typed = segs.filter((g) => g.type);
+    if (new Set(typed.map((g) => g.type)).size < 2) return [file];
+    const { PDFDocument } = require("pdf-lib");
+    const src = await PDFDocument.load(file.data, { ignoreEncryption: true });
+    const base = String(file.name || "書類.pdf").replace(/\.pdf$/i, "");
+    const out = [], n = {};
+    for (const g of typed) {
+      const d = await PDFDocument.create();
+      (await d.copyPages(src, g.pages)).forEach((pg) => d.addPage(pg));
+      const lbl = g.type === "order" ? "作業依頼書" : "作業完了報告書";
+      n[lbl] = (n[lbl] || 0) + 1;
+      out.push({ name: base + "_" + lbl + (n[lbl] > 1 ? n[lbl] : "") + ".pdf", data: Buffer.from(await d.save()) });
+    }
+    return out;
+  } catch (e) { return [file]; }
 }
 
 const MAX_FILE_B64 = 950000; // Redis に保存するPDFの上限(base64で約700KB)
@@ -176,6 +207,7 @@ async function processAttachments(attachments, pwTexts, ctx) {
       else continue;
       if (!pdfs.length) { results.push({ file: a.name, state: "no_pdf" }); continue; }
       const docs = [];
+      { const ex = []; for (const p of pdfs) for (const q of await splitCombined(p)) ex.push(q); pdfs = ex; }
       for (const p of pdfs) docs.push({ p, text: await pdfText(p.data) });
       // 作業依頼書を先に、作業完了報告書を後に処理する(同じ案件に結びつけるため)
       docs.sort((x, y) => (AP.isWorkOrder(y.text) ? 1 : 0) - (AP.isWorkOrder(x.text) ? 1 : 0));
@@ -197,4 +229,4 @@ async function processAttachments(attachments, pwTexts, ctx) {
   return results;
 }
 
-module.exports = { unzipPdfs, openZip, pdfText, registerWork, registerReport, processAttachments };
+module.exports = { splitCombined, unzipPdfs, openZip, pdfText, registerWork, registerReport, processAttachments };
