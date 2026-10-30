@@ -892,6 +892,17 @@ var LS="ap:v1";
 function lsGet(){try{return JSON.parse(localStorage.getItem(LS))||{}}catch(x){return {}}}
 function lsSet(d){try{localStorage.setItem(LS,JSON.stringify(d))}catch(x){toast("保存できませんでした(ブラウザの保存容量)")}}
 function vals(o){return Object.keys(o||{}).map(function(k){return o[k]})}
+/* メール本文だけの依頼: 件名から店舗名・顧客案件番号を補い、kMailerのリンクがあれば「作業依頼書PDF待ち」にする(サーバー版と同じ) */
+function mailFill(jobs,mail){
+ var subj=String(mail.subject||""),st=AP.normStore(subj.replace(/【[^】]*】/g,"").replace(/\d{6,}/g,"").trim()),cn=(subj.match(/(?:^|[^0-9])(\d{8})(?:[^0-9]|$)/)||[])[1]||"";
+ var lk=(String(mail.body||"").match(/https:\/\/mailer\.kintoneapp\.com\/[^\s"'<>)）」]+/)||[])[0]||"";
+ jobs.forEach(function(j){
+  if(st&&!j.site)j.site=st;
+  if(j.site){var sj=AP.splitJurisdiction(j.site);j.site=AP.normStore(sj.site);if(sj.jurisdiction&&!j.jurisdiction)j.jurisdiction=sj.jurisdiction}
+  if(lk&&!(j.files||[]).length){j.pdfLink=lk;j.needsReview=true;if(cn&&!j.caseNo)j.caseNo=cn;j.issues=(j.issues||[]).concat("作業依頼書PDFが未取込です(「書類の確認」から作業依頼書を追加してください)")}
+ });
+ return jobs;
+}
 function gmUrl(id){return /^[0-9a-f]{8,}$/i.test(String(id||""))?"https://mail.google.com/mail/u/0/#all/"+id:""}
 function buildMail(p){
   var m={from:String(p.from||""),subject:String(p.subject||""),date:String(p.date||""),messageId:String(p.messageId||""),body:String(p.text||"")};
@@ -921,7 +932,7 @@ var Local={
    ex.uncertain.unshift("受注依頼と判定できませんでしたが、指定により登録しました");
   }
   var nos=[];for(var i=0;i<ex.orders.length;i++)nos.push(p.dryRun?"":await Local.nextNo());
-  var jobs=AP.makeJobs(ex,mail,{now:now,nextNo:function(){return nos.shift()},source:"paste"});
+  var jobs=mailFill(AP.makeJobs(ex,mail,{now:now,nextNo:function(){return nos.shift()},source:"paste"}),mail);
   if(p.dryRun)return {state:"draft",jobs:jobs,key:key};
   d=lsGet();d.orders=d.orders||{};d.mails=d.mails||{};
   jobs.forEach(function(j){d.orders[j.id]=j});
@@ -1006,7 +1017,7 @@ var Art={
    ex.uncertain.unshift("受注依頼と判定できませんでしたが、指定により登録しました");
   }
   var nos=[];for(var i=0;i<ex.orders.length;i++)nos.push(p.dryRun?"":await Art.nextNo());
-  var jobs=AP.makeJobs(ex,mail,{now:now,nextNo:function(){return nos.shift()},source:p.source||"paste"});
+  var jobs=mailFill(AP.makeJobs(ex,mail,{now:now,nextNo:function(){return nos.shift()},source:p.source||"paste"}),mail);
   if(p.dryRun)return {state:"draft",jobs:jobs,key:key,ai:used};
   for(var k=0;k<jobs.length;k++)await Art.saveOrder(jobs[k]);
   await Art.saveMail({key:key,at:now,state:"registered",from:mail.from,subject:mail.subject,jobs:jobs.map(function(j){return {id:j.id,no:j.no}}),ai:used});
