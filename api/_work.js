@@ -91,6 +91,15 @@ function byStore(all, name) {
   return c.length === 1 ? c[0] : null;
 }
 
+// 関連メール: 案件に届いたメールを記録(同じメールは1回だけ)
+function addRel(o, mail) {
+  if (!mail || !mail.messageId) return;
+  const key = "g" + String(mail.messageId).replace(/[^A-Za-z0-9]/g, "").slice(0, 80);
+  if ((o.mails || []).some((x) => x.key === key)) return;
+  const url = /^[0-9a-f]{8,}$/i.test(String(mail.messageId)) ? "https://mail.google.com/mail/u/0/#all/" + mail.messageId : "";
+  o.mails = (o.mails || []).concat([{ key, subject: mail.subject || "", from: mail.from || "", date: mail.date || "", url }]);
+}
+
 // 作業依頼書と作業完了報告書が1つのPDFに合わさっている場合、種類ごとのPDFに分ける
 async function splitCombined(file) {
   try {
@@ -160,6 +169,7 @@ async function registerWork(w, file, ctx) {
     if (!empty(target.contact) && target.email) merged.contact = target.contact;
     if (!empty(target.subject)) { merged.mailSubject = target.subject; }
     merged.files = (job.files || []).concat((target.files || []).filter((f) => f.kind === "report"));
+    merged.mails = target.mails || []; addRel(merged, ctx.mail);
     merged.history = (target.history || []).concat({ at: now, text: target.provisional ? "作業依頼書を読み込んで内容を確定" : "作業依頼書PDFを読み込んで内容を更新" });
     cmds.push(["HSET", K.orders, target.id, JSON.stringify(merged)], ["INCR", K.ver("orders")]);
     if (w.reqNo) cmds.push(["HSET", K.mails, AP.workKey(w), JSON.stringify({ key: AP.workKey(w), at: now, state: "registered", from: job.customer, subject: "作業依頼書 " + w.reqNo + " " + (w.site || "") + " " + (w.subject || ""), jobs: [{ id: target.id, no: target.no }] })], ["INCR", K.ver("mails")]);
@@ -224,6 +234,7 @@ async function registerReport(rep, file, ctx) {
       entry.url = "/api/file?id=" + encodeURIComponent(fid);
     }
   }
+  addRel(o, ctx.mail);
   o.files = (o.files || []).filter((f) => f.kind !== "report").concat(entry);
   if (!created) o.history = (o.history || []).concat({ at: now, text: "作業完了報告書を追加" });
   cmds.push(["HSET", K.orders, o.id, JSON.stringify(o)], ["INCR", K.ver("orders")]);

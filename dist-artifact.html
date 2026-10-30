@@ -130,6 +130,7 @@ details summary{cursor:pointer;font-weight:700;font-size:13px}
 .phc{border:1px solid var(--line);border-radius:10px;padding:6px;display:flex;flex-direction:column;gap:5px;background:var(--bg)}
 .phc img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:6px;cursor:zoom-in;background:#0001}
 .phc select,.phc input{font:inherit;font-size:12.5px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);width:100%;min-width:0}
+.rel{display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--line)}.rel:first-child{border-top:0}
 .docs{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
 .docs .doc{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--surface);display:flex;flex-direction:column;min-width:0}
 .docs .dh{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 12px;border-bottom:1px solid var(--line);background:var(--bg2,#0000000a)}
@@ -1497,6 +1498,7 @@ function pgMail(){
   return '<div class="card2"><div style="font-weight:700;overflow-wrap:anywhere">'+e(m.subject||"(件名なし)")+'</div>'+
    '<div class="sub" style="margin:4px 0">'+e(String(m.date||m.at||"").slice(0,16).replace("T"," "))+' ・ '+e(m.from||"")+' ・ '+e(m.reason||(m.state==="error"?"読み取りに失敗しました":"受注依頼ではないと判定"))+'</div>'+
    '<div class="row2" style="gap:8px;flex-wrap:wrap">'+(m.url?'<a class="btn sm" href="'+e(m.url)+'" target="_blank" rel="noopener">Gmailで開く ↗</a>':"")+
+   '<select class="mlsel" data-k="'+e(m.key)+'"><option value="">既存の案件に紐づける</option>'+S.orders.filter(function(o){return o.status!==8}).map(function(o){return '<option value="'+e(o.id)+'">'+e(o.no+" "+title(o))+'</option>'}).join("")+'</select><button class="btn sm" data-a="maillink" data-k="'+e(m.key)+'">紐づける</button>'+
    '<button class="btn sm pri" data-a="mailnew" data-k="'+e(m.key)+'">案件として登録</button>'+
    '<button class="btn sm" data-a="maildone" data-k="'+e(m.key)+'">対応済みにする</button></div></div>'}).join("");
 }
@@ -1580,6 +1582,18 @@ function itemRow(it){it=it||{};return '<tr><td><input type="text" class="n" valu
 /* ---- 書類(作業依頼書・作業完了報告書)を案件の中で画像のように見る ---- */
 var DOCK=[["order","作業依頼書"],["report","作業完了報告書"]];
 function docKind(f){return f.kind||(/報告|report/i.test((f.label||"")+(f.name||""))?"report":"order")}
+/* ---- 関連メール: 1つの案件に複数のメールを紐づけ ---- */
+function relMails(o){var L=(o.mails||[]).slice();if(o.mail&&(o.mail.subject||o.mail.from)&&!L.some(function(x){return (x.messageId&&x.messageId===o.mail.messageId)||x.subject===o.mail.subject}))L.unshift({key:"",subject:o.mail.subject,from:o.mail.from,date:o.mail.date,url:gmUrl(o.mail.messageId),first:1});return L}
+function mailsSection(o){
+ var L=relMails(o),linked={};L.forEach(function(x){if(x.key)linked[x.key]=1});
+ var cand=(S.mails||[]).filter(function(m){return m.state!=="processing"&&m.subject&&!linked[m.key]}).sort(function(a,b){return String(b.date||b.at).localeCompare(String(a.date||a.at))}).slice(0,60);
+ var h='<div><b style="font-size:13px">関連メール</b> <span class="sub">(この案件に関わるメール。複数紐づけできます)</span></div><div class="gml" id="relm">';
+ h+=L.length?L.map(function(x){return '<div class="rel"><div style="min-width:0"><div class="s">'+e(x.subject||"(件名なし)")+'</div><div class="sub">'+e(String(x.date||"").slice(0,16).replace("T"," "))+' ・ '+e(x.from||"")+(x.first?" ・ 取込元のメール":"")+'</div></div>'+(x.url?'<a class="btn sm" href="'+e(x.url)+'" target="_blank" rel="noopener">Gmailで開く ↗</a>':"")+(x.key?'<button class="btn sm" data-a="mlunlink" data-k="'+e(x.key)+'">紐づけ解除</button>':"")+'</div>'}).join(""):'<div class="sub">まだありません</div>';
+ h+='</div>';
+ if(cand.length)h+='<div class="row2" style="gap:8px;flex-wrap:wrap"><select id="relsel" style="min-width:0;flex:1"><option value="">関連メールを選んで追加</option>'+cand.map(function(m){return '<option value="'+e(m.key)+'">'+e(String(m.date||m.at||"").slice(0,10)+" "+(m.subject||""))+'</option>'}).join("")+'</select><button class="btn sm" data-a="mladd">追加</button></div>';
+ return h;
+}
+function linkMail(o,m){var rec={key:m.key,subject:m.subject||"",from:m.from||"",date:m.date||m.at||"",url:m.url||""};o.mails=(o.mails||[]).filter(function(x){return x.key!==m.key}).concat([rec]);o.history=(o.history||[]).concat({at:new Date().toISOString(),text:"関連メールを紐づけ: "+(m.subject||"")})}
 function docsSection(o){
  var files=o.files||[],h='<div><b style="font-size:13px">書類</b> <span class="sub">(画像をクリックすると大きく表示)</span></div><div class="docs" id="docs">';
  DOCK.forEach(function(d){
@@ -1645,7 +1659,7 @@ function openJob(o,opt){
   '<label class="wide">工期・納期の記載<input type="text" id="f-sched" value="'+e(o.schedule||"")+'"></label>'+
   '<label class="wide">社内メモ<textarea id="f-note" rows="2">'+e(o.note)+'</textarea></label>'+
   '<label class="chk"><input type="checkbox" id="f-urg"'+(o.urgent?" checked":"")+'> 至急</label><label class="chk"><input type="checkbox" id="f-rev"'+(o.needsReview?" checked":"")+'> 要確認(内容を確認したらチェックを外す)</label></div>';
-  if(!draft)h+=docsSection(o);
+  if(!draft)h+=docsSection(o)+mailsSection(o);
  else if((o.files||[]).length)h+='<div class="row2"><b style="font-size:13px">添付</b>'+o.files.map(function(f,i){var href=f.asset?"/_blob/"+f.asset:f.url||"";return href?'<button class="btn sm" data-a="pvopen" data-k="f" data-i="'+i+'">'+e(f.name||"PDF")+' をプレビュー</button>':'<span class="pill" title="サイズが大きいため保存されていません">'+e(f.name||"")+'</span>'}).join("")+'</div>';
  if(!draft)h+=photoSection(o);
  h+='<h3 style="font-family:var(--f-head);font-size:15px;margin:0">見積明細</h3><div class="scroll"><table class="items" id="items"><thead><tr><th>品名・作業項目</th><th>規格・型番</th><th>数量</th><th>単位</th><th>単価(税抜)</th><th>金額</th><th></th></tr></thead><tbody>'+(o.items&&o.items.length?o.items:[{}]).map(itemRow).join("")+'</tbody></table></div>'+
@@ -2058,6 +2072,14 @@ document.addEventListener("click",async function(ev){
    S.settings.looseDocs=(S.settings.looseDocs||[]).concat(gone.map(function(f,i){return {id:"ld"+Date.now()+i,name:f.name||ul,url:f.url||"",kind:uk,label:ul,fromNo:uo.no,fromSite:title(uo),at:new Date().toISOString()}}));
    try{await Store.saveOrder(uo);await saveSettings();var wasDlg=!!S.dlg;if(wasDlg)closeDlg();await reload(true);render();toast(ul+"の紐づけを解除しました(「書類の確認」の未紐づけに残ります)");if(wasDlg){var nj=S.orders.filter(function(x){return x.id===uo.id})[0];if(nj)openJob(nj)}}catch(x){toast("解除に失敗しました: "+(x.message||x.code))}
    break}
+  case "mladd":{var rs=$("#relsel"),rm=rs&&(S.mails||[]).filter(function(x){return x.key===rs.value})[0],ro=S.dlg&&S.dlg.job;if(!rm||!ro)break;
+   linkMail(ro,rm);try{await Store.saveOrder(ro);var rid2=ro.id;closeDlg();await reload(true);render();var nj2=S.orders.filter(function(x){return x.id===rid2})[0];if(nj2)openJob(nj2);toast("関連メールを紐づけました")}catch(x){toast("保存に失敗しました: "+(x.message||x.code))}break}
+  case "mlunlink":{var ro2=S.dlg&&S.dlg.job;if(!ro2)break;ro2.mails=(ro2.mails||[]).filter(function(x){return x.key!==t.dataset.k});
+   try{await Store.saveOrder(ro2);var rid3=ro2.id;closeDlg();await reload(true);render();var nj3=S.orders.filter(function(x){return x.id===rid3})[0];if(nj3)openJob(nj3);toast("紐づけを解除しました")}catch(x){toast("保存に失敗しました: "+(x.message||x.code))}break}
+  case "maillink":{var lm=(S.mails||[]).filter(function(x){return x.key===t.dataset.k})[0],ls=document.querySelector('select.mlsel[data-k="'+t.dataset.k+'"]'),lo=ls&&S.orders.filter(function(x){return x.id===ls.value})[0];
+   if(!lm||!lo){toast("紐づける案件を選んでください");break}
+   linkMail(lo,lm);lm.was=lm.state;lm.state="done";lm.doneAt=new Date().toISOString();
+   try{await Store.saveOrder(lo);await Store.saveMail(lm);await reload(true);render();toast(lo.no+" に関連メールとして紐づけました")}catch(x){toast("保存に失敗しました: "+(x.message||x.code))}break}
   case "mailnew":{var mm=(S.mails||[]).filter(function(x){return x.key===t.dataset.k})[0];if(!mm)break;
    newJob({subject:mm.subject||"",site:subjStore({subject:mm.subject||""}),source:"gmail",mailKey:mm.key});break}
   case "maildone":{var md=(S.mails||[]).filter(function(x){return x.key===t.dataset.k})[0];if(!md)break;
