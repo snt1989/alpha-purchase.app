@@ -85,6 +85,12 @@ async function ingest(mail, opts) {
     }
     const nos = opts.dryRun ? ex.orders.map(() => "") : await nextNos(ex.orders.length);
     const jobs = AP.makeJobs(ex, mail, { now, nextNo: () => nos.shift(), source: opts.source || "paste" });
+    // 本文に作業依頼書のダウンロードリンク(kMailer)がある場合は、案件にリンクを残し、PDF待ちの印を付ける
+    const lk = (String(mail.body || "").match(/https:\/\/mailer\.kintoneapp\.com\/[^\s"'<>)）」]+/) || [])[0];
+    if (lk) {
+      const cn = (String(mail.subject || "").match(/(?:^|[^0-9])(\d{8})(?:[^0-9]|$)/) || [])[1] || "";
+      jobs.forEach((j) => { j.pdfLink = lk; j.needsReview = true; if (cn && !j.caseNo) j.caseNo = cn; j.issues = (j.issues || []).concat("作業依頼書PDFが未取込です(リンクから開いて保存し、ホームの「作業依頼書PDFを追加」へ)"); });
+    }
     if (opts.dryRun) return { state: "draft", jobs, key, ai: usedAi };
 
     const cmds = jobs.map((j) => ["HSET", K.orders, j.id, JSON.stringify(j)]);

@@ -424,6 +424,19 @@ async function checkNew(){
  try{var v=await Store.ver();if(v.orders!==S.ver.orders||v.mails!==S.ver.mails||v.settings!==S.ver.settings){var n=S.orders.length;await reload();if(S.orders.length>n)toast("新しい受注が "+(S.orders.length-n)+" 件登録されました")}}catch(x){}
 }
 
+function b64Of(file){return new Promise(function(res,rej){var r=new FileReader();r.onload=function(){res(String(r.result).split(",")[1]||"")};r.onerror=function(){rej(new Error("ファイルを読めませんでした"))};r.readAsDataURL(file)})}
+async function workUpload(files){
+ if(!files.length)return;var msg=[];S.busy=true;
+ for(var i=0;i<files.length;i++){
+  var f=files[i];toast("読み込み中… "+f.name);
+  try{
+   var b64=await b64Of(f),r=await post("/api/workpdf",{name:f.name,b64:b64}),x=(r.results||[])[0]||{};
+   if(x.code==="no_password"||/password/i.test(x.error||"")){var pw=window.prompt(f.name+" のパスワードを入力してください");if(pw){r=await post("/api/workpdf",{name:f.name,b64:b64,password:pw});x=(r.results||[])[0]||{}}}
+   msg.push(x.state==="registered"?f.name+": 新規登録 "+x.no:x.state==="merged"?f.name+": "+x.no+" の内容を更新しました":x.state==="duplicate"?f.name+": 登録済み("+x.no+")":x.state==="not_work_order"?f.name+": 作業依頼書の書式ではありません":f.name+": 読み込めませんでした"+(x.error?"("+x.error+")":""));
+  }catch(err){msg.push(f.name+": "+(err.message||"失敗"))}
+ }
+ S.busy=false;await reload(true);render();toast(msg.join(" ／ "));
+}
 function pgHome(){
  var O=S.orders,mon=today().slice(0,7);
  var nNew=O.filter(function(o){return o.status===0}).length,nRep=O.filter(function(o){return o.status===4}).length,nQ=O.filter(function(o){return o.kind!=="order"&&o.status===2}).length,nRev=O.filter(function(o){return o.needsReview&&o.status<=3}).length;
@@ -433,7 +446,7 @@ function pgHome(){
  var todo=O.filter(function(o){return o.status!==8&&(o.status<=1||isLate(o)||isSoon(o)||(o.needsReview&&o.status<=3))}).sort(function(a,b){
   return (isLate(b)-isLate(a))||((b.urgent?1:0)-(a.urgent?1:0))||String(dueOf(a)||"9999").localeCompare(String(dueOf(b)||"9999"))}).slice(0,8);
  var cnt=ST.map(function(s,i){return O.filter(function(o){return o.status===i}).length});
- var h='<div class="pghead"><h2 class="pt">ホーム</h2><div class="pgact">'+(S.mode==="server"?"":'<button class="btn pri" data-a="tab" data-t="import">依頼を取り込む</button>')+'<button class="btn" data-a="new">手入力で登録</button></div></div>';
+ var h='<div class="pghead"><h2 class="pt">ホーム</h2><div class="pgact">'+(S.mode==="server"?'<label class="btn out" style="cursor:pointer" title="メールのリンクからダウンロードした作業依頼書(PDF・ZIP)を読み込みます。同じ顧客案件番号の案件があれば、その内容を更新します">作業依頼書PDFを追加<input type="file" id="wpf" accept=".pdf,.zip,application/pdf" multiple hidden></label>':'<button class="btn pri" data-a="tab" data-t="import">依頼を取り込む</button>')+'<button class="btn" data-a="new">手入力で登録</button></div></div>';
  if(S.mode==="local")h+='<div class="banner info">お試しモードです。データはこのブラウザの中にだけ保存されます。サーバー(Vercel)に置くと、メールの自動取込・AI解析・全員での共有が使えます(設定の README を参照)。</div>';
  h+='<div class="grid alerts">'+
   '<button class="alert'+(nNew?" warm":"")+'" data-a="flt" data-f="status:0"><b>'+nNew+'</b><span>依頼受付(未着手)</span></button>'+
@@ -784,7 +797,7 @@ function itemRow(it){it=it||{};return '<tr><td><input type="text" class="n" valu
 function openJob(o,opt){
  opt=opt||{};var draft=!!opt.draft;S.dlg={job:o,draft:draft,key:opt.key||""};
  var staff=S.settings.staff||[];
- var h='<div class="mask" id="mask"><div class="dlg" role="dialog" aria-modal="true"><div class="acts"><h2>'+(draft?(o.no?"案件の登録(確認)":"新規登録"):"案件 "+e(o.no))+'</h2><span class="row2">'+(o.source?'<span class="sub">'+e(SRC[o.source]||o.source)+(o.parsedBy==="ai"?"・AI解析":o.parsedBy==="rule"?"・簡易解析":o.parsedBy==="form"?"・書式から読取":"")+'</span>':"")+'</span></div>';
+ var h='<div class="mask" id="mask"><div class="dlg" role="dialog" aria-modal="true"><div class="acts"><h2>'+(draft?(o.no?"案件の登録(確認)":"新規登録"):"案件 "+e(o.no))+'</h2><span class="row2">'+(o.source?(o.pdfLink?'<a class="btn sm out" href="'+e(o.pdfLink)+'" target="_blank" rel="noopener">作業依頼書を開く</a>':"")+'<span class="sub">'+e(SRC[o.source]||o.source)+(o.parsedBy==="ai"?"・AI解析":o.parsedBy==="rule"?"・簡易解析":o.parsedBy==="form"?"・書式から読取":"")+'</span>':"")+'</span></div>';
  if((o.issues||[]).length)h+='<div class="issues"><b>読み取りで気になった点</b><ul>'+o.issues.map(function(x){return '<li>'+e(x)+'</li>'}).join("")+'</ul></div>';
  h+='<div class="fields">'+
   '<label>状態<select id="f-status">'+ST.map(function(s,i){return '<option value="'+i+'"'+(o.status===i?" selected":"")+'>'+e(s)+'</option>'}).join("")+'</select></label>'+
@@ -1222,6 +1235,7 @@ document.addEventListener("change",function(ev){
  else if(t.id==="fsp"){S.f.sp=t.value;renderList()}
  else if(t.id==="fkind"){S.f.kind=t.value;renderList()}
  else if(t.id==="fi"){readFile(t.files[0]);t.value=""}
+ else if(t.id==="wpf"){workUpload(Array.prototype.slice.call(t.files));t.value=""}
  else if(t.id==="phi"){var fl3=Array.prototype.slice.call(t.files);t.value="";addPhotos(fl3)}
  else if(t.id==="fzi"){var fl=Array.prototype.slice.call(t.files);t.value="";importFiles(fl)}
  else if(t.id==="zpwkeep"){zpwSet(t.checked?($("#zpw")||{}).value||"":"")}

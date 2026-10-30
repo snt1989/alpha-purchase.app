@@ -90,9 +90,19 @@ async function registerWork(w, file, ctx) {
       try { const o = JSON.parse(flat[i + 1]); if (o.reqNo === w.reqNo) return { state: "duplicate", job: o }; } catch (e) {}
     }
   }
-  const now = new Date().toISOString();
-  const no = (await nextNos(1))[0];
+  const now0 = new Date().toISOString();
+  // メール本文だけで先に登録された案件(PDF待ち)があれば、新規にせずそこへ内容を反映する
+  let target = null;
+  if (w.caseNo) {
+    const flat2 = (await redis(["HGETALL", K.orders])) || [];
+    for (let i = 0; i + 1 < flat2.length && !target; i += 2) {
+      try { const o = JSON.parse(flat2[i + 1]); if (!o.reqNo && o.pdfLink && (o.caseNo === w.caseNo || String(o.subject || "").indexOf(w.caseNo) >= 0)) target = o; } catch (e) {}
+    }
+  }
+  const now = now0;
+  const no = target ? target.no : (await nextNos(1))[0];
   const job = AP.makeWorkJob(w, { now, nextNo: () => no, source: ctx.source || "gmail", fileName: file && file.name, mail: ctx.mail || null, files: [] });
+  if (target) job.id = target.id; // 既存の案件に反映するときは同じIDを使う(ファイルのIDも揃う)
   const cmds = [];
   if (file && file.data) {
     const b64 = Buffer.from(file.data).toString("base64");
@@ -101,6 +111,16 @@ async function registerWork(w, file, ctx) {
       cmds.push(["SET", "ap:file:" + fid, b64], ["HSET", "ap:fmeta", fid, JSON.stringify({ id: fid, name: file.name, mime: "application/pdf", job: job.id, at: now })]);
       job.files = [{ name: file.name, url: "/api/file?id=" + encodeURIComponent(fid) }];
     } else job.files = [{ name: file.name }];
+  }
+  if (target) {
+    // 既存の案件に上書き(番号・状態・履歴・写真などは引き継ぐ)
+    const keep = {}; ["id", "no", "status", "history", "photos", "createdAt", "receivedAt", "staff", "note"].forEach((k) => { if (target[k] !== undefined) keep[k] = target[k]; });
+    const merged = Object.assign({}, job, keep, { pdfLink: undefined });
+    merged.history = (target.history || []).concat({ at: now, text: "作業依頼書PDFを読み込んで内容を更新" });
+    cmds.push(["HSET", K.orders, target.id, JSON.stringify(merged)], ["INCR", K.ver("orders")]);
+    if (w.reqNo) cmds.push(["HSET", K.mails, AP.workKey(w), JSON.stringify({ key: AP.workKey(w), at: now, state: "registered", from: job.customer, subject: "作業依頼書 " + w.reqNo + " " + (w.site || "") + " " + (w.subject || ""), jobs: [{ id: target.id, no: target.no }] })], ["INCR", K.ver("mails")]);
+    await pipeline(cmds);
+    return { state: "merged", job: merged };
   }
   if (ctx.pwFrom) job.history.push({ at: now, text: "ZIPのパスワードを「" + ctx.pwFrom + "」から読み取り" });
   cmds.push(["HSET", K.orders, job.id, JSON.stringify(job)], ["INCR", K.ver("orders")]);
