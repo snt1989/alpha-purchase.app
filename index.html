@@ -793,17 +793,18 @@ function dupCard(){
 async function loadOrph(){if(S.mode!=="server"){S.orph=[];return}try{var r=await post("/api/db",{op:"orphans"});S.orph=r.docs||[]}catch(x){S.orph=[]}if(S.tab==="docs")render()}
 function pgDocs(){
  if(!S.orphLoaded){S.orphLoaded=true;loadOrph()}
- var L=S.orders.filter(function(o){return o.status!==8}).map(function(o){var d=docState(o);return {o:o,d:d,n:(d.order?1:0)+(d.report?1:0)}}).filter(function(x){return x.n>0});
- var c={all:L.length,both:L.filter(function(x){return x.n===2}).length,one:L.filter(function(x){return x.n===1}).length};
- var f=S.docf||"all",rows=L.filter(function(x){return f==="all"||(f==="both"&&x.n===2)||(f==="one"&&x.n===1)});
+ var L=S.orders.filter(function(o){return o.status!==8}).map(function(o){var d=docState(o);return {o:o,d:d,n:(d.order?1:0)+(d.report?1:0)}});
+ var c={all:L.length,both:L.filter(function(x){return x.n===2}).length,one:L.filter(function(x){return x.n===1}).length,none:L.filter(function(x){return x.n===0}).length};
+ var f=S.docf||"all",rows=L.filter(function(x){return f==="all"||(f==="both"&&x.n===2)||(f==="one"&&x.n===1)||(f==="none"&&x.n===0)});
  rows.sort(function(a,b){return (a.n-b.n)||String(b.o.receivedAt||b.o.createdAt).localeCompare(String(a.o.receivedAt||a.o.createdAt))});
  var h='<div class="pghead"><h2 class="pt">書類の確認</h2><div class="pgact"><button class="btn out" data-a="dupchk">重複チェック</button>'+(S.mode==="server"?'<label class="btn out" style="cursor:pointer">作業依頼書・作業完了報告書追加<input type="file" id="wpf" accept=".pdf,.zip,application/pdf" multiple hidden></label>':"")+'</div></div>';
  if(S.dupOn)h+=dupCard();
- h+='<div class="sub" style="margin-bottom:10px">アップロードした書類と、メールから取り込んだ書類だけを管理します(書類が付いている案件のみ表示)。行をクリックすると案件が開き、「紐づけ解除」で案件から書類を外せます。</div>';
+ h+='<div class="sub" style="margin-bottom:10px">すべての案件(キャンセル以外)について、作業依頼書・作業完了報告書が付いているかを確認できます。「紐づけ解除」で外した書類は下の「未紐づけの書類」に残ります。</div>';
  h+='<div class="grid alerts">'+
   '<button class="alert'+(f==="all"?" warm":"")+'" data-a="docf" data-f="all"><b>'+c.all+'</b><span>すべて</span></button>'+
   '<button class="alert'+(f==="both"?" warm":"")+'" data-a="docf" data-f="both"><b style="color:var(--ok)">'+c.both+'</b><span>2枚そろっている</span></button>'+
-  '<button class="alert'+(f==="one"?" warm":"")+'" data-a="docf" data-f="one"><b>'+c.one+'</b><span>1枚だけ</span></button></div>';
+  '<button class="alert'+(f==="one"?" warm":"")+'" data-a="docf" data-f="one"><b>'+c.one+'</b><span>1枚だけ</span></button>'+
+  '<button class="alert'+(c.none?" hot":"")+(f==="none"?" warm":"")+'" data-a="docf" data-f="none"><b>'+c.none+'</b><span>書類なし</span></button></div>';
  h+='<div class="card2" style="padding:0"><div class="scroll"><table class="items" style="min-width:760px"><thead><tr><th>案件No</th><th>店舗・件名</th><th>依頼番号 / 案件番号</th><th>作業依頼書</th><th>作業完了報告書</th><th>状態</th></tr></thead><tbody>'+
   (rows.length?rows.map(function(x){var o=x.o;return '<tr data-a="open" data-id="'+e(o.id)+'" style="cursor:pointer"><td class="nw">'+e(o.no||"")+'</td><td><b>'+e(title(o))+'</b>'+(siteParts(o).jur?' <span class="sub">管轄: '+e(siteParts(o).jur)+'</span>':"")+'<div class="sub">'+e(o.subject||"")+'</div></td><td class="sub">'+e(o.reqNo||"—")+(o.caseNo?' / '+e(o.caseNo):"")+'</td><td>'+docTag(x.d.order,o.id,'order')+'</td><td>'+docTag(x.d.report,o.id,'report')+'</td><td class="nw">'+e((ST[o.status]||"")+(o.provisional?"(仮)":""))+'</td></tr>'}).join(""):'<tr><td colspan="6"><div class="empty">該当する案件はありません</div></td></tr>')+
   '</tbody></table></div></div>';
