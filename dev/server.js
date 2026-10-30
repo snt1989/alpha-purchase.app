@@ -3,6 +3,7 @@
 const http = require("http"), fs = require("fs"), path = require("path");
 process.env.APP_PASSWORD = process.env.APP_PASSWORD || "test1234";
 process.env.INBOUND_TOKEN = process.env.INBOUND_TOKEN || "local-inbound-token-1234";
+process.env.ALLOWED_SENDERS = process.env.ALLOWED_SENDERS || "*";
 if (!process.env.KV_REST_API_URL) globalThis.__REDIS_MOCK__ = require("./redis-mock")();
 const root = path.join(__dirname, "..");
 const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".json": "application/json", ".webmanifest": "application/manifest+json", ".png": "image/png", ".svg": "image/svg+xml" };

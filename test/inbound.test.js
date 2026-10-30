@@ -3,6 +3,7 @@
 const assert = require("assert"), fs = require("fs"), path = require("path");
 process.env.APP_PASSWORD = "pw-for-test";
 process.env.INBOUND_TOKEN = "inbound-token-0123456789";
+process.env.ALLOWED_SENDERS = "*";
 globalThis.__REDIS_MOCK__ = require("../dev/redis-mock")();
 const zipPath = path.join(__dirname, "fixtures/locked.zip");
 if (!fs.existsSync(zipPath)) { console.log("inbound: skip(test/fixtures/locked.zip がありません)"); process.exit(0); }
@@ -53,5 +54,11 @@ const b64 = fs.readFileSync(zipPath).toString("base64");
   // 5) 添付なしのメールは本文から登録(従来どおり)
   r = await call(inbound, { headers: H, body: { messageId: "m3", from: "山田 <y@yamada.example.jp>", subject: "見積のお願い", body: "山田工業株式会社です。\n品名: ナット M6\n数量: 500個\n回答期限: 11/20\n" } });
   assert.strictEqual(r.json.state, "registered");
+  // 6) アルファパーチェス以外の差出人は取り込まない
+  process.env.ALLOWED_SENDERS = "alphapurchase.co.jp,gravity-inc001.com";
+  r = await call(inbound, { headers: H, body: { messageId: "m4", from: "関係ない <x@other.example.com>", subject: "見積のお願い", body: "品名: ボルト\n数量: 10個\n" } });
+  assert.strictEqual(r.json.state, "ignored");
+  r = await call(inbound, { headers: H, body: { messageId: "m5", from: "mente-report@alphapurchase.co.jp", subject: "見積のお願い", body: "品名: ボルト\n数量: 10個\n回答期限: 11/20\n" } });
+  assert.notStrictEqual(r.json.state, "ignored");
   console.log("inbound tests OK (" + (Date.now() - t0) + "ms)");
 })().catch((e) => { console.error(e); process.exit(1); });

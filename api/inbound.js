@@ -22,6 +22,10 @@ module.exports = async (req, res) => {
     try { await redis(["SET", "ap:heartbeat", JSON.stringify(hb)]); return res.json({ ok: true }); }
     catch (e) { return res.status(500).json({ ok: false, error: String(e.message || e).slice(0, 200) }); }
   }
+  // アルファパーチェス以外の差出人は取り込まない(Gmail側の絞り込みの二重の安全策)。ALLOWED_SENDERS(カンマ区切り)で変更可(* で全員許可)
+  const allow = String(process.env.ALLOWED_SENDERS || "alphapurchase.co.jp,gravity-inc001.com").split(",").map((x) => x.trim().toLowerCase()).filter(Boolean);
+  const fromAddr = String(b.from || "").toLowerCase();
+  if (allow.indexOf("*") < 0 && !allow.some((d) => fromAddr.indexOf(d) >= 0)) return res.json({ ok: true, state: "ignored", reason: "sender_not_allowed" });
   const mail = { from: String(b.from || ""), subject: String(b.subject || ""), date: String(b.date || ""), messageId: String(b.messageId || ""), body: String(b.body || "") };
   const atts = (Array.isArray(b.attachments) ? b.attachments : []).slice(0, 10)
     .filter((a) => a && a.name && typeof a.b64 === "string" && /\.(zip|pdf)$/i.test(a.name))

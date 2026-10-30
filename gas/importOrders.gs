@@ -2,8 +2,8 @@
 // 使い方: script.google.com に貼り付け → TOKEN を設定 → トリガーで importOrders を「5分ごと」に実行
 const ENDPOINT = '__ORIGIN__/api/inbound';
 const TOKEN = 'ここに INBOUND_TOKEN を貼り付け';
-// 拾うメールの条件(Gmailの検索と同じ書き方)。取引先で絞るなら from:@alphapurchase.co.jp などを足す
-const QUERY = 'in:inbox newer_than:3d -label:AP取込済 (filename:zip OR filename:pdf OR 作業依頼 OR 見積 OR 注文 OR 発注 OR 依頼)';
+// 拾うメールの条件(Gmailの検索と同じ書き方)。アルファパーチェス(alphapurchase.co.jp)と、修繕依頼の配信元(gravity-inc001.com)だけを拾う
+const QUERY = 'in:inbox newer_than:3d -label:AP取込済 (from:alphapurchase.co.jp OR from:gravity-inc001.com)';
 const DONE_LABEL = 'AP取込済';
 
 function importOrders() {

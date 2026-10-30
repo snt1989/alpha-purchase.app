@@ -1,6 +1,7 @@
 const assert = require("assert");
 process.env.APP_PASSWORD = "pw-for-test";
 process.env.INBOUND_TOKEN = "inbound-token-0123456789";
+process.env.ALLOWED_SENDERS = "*";
 globalThis.__REDIS_MOCK__ = require("../dev/redis-mock")();
 const AP = require("../parse.js");
 
