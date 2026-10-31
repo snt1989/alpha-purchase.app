@@ -203,8 +203,12 @@ details summary{cursor:pointer;font-weight:700;font-size:13px}
  table.rt td.rt0::before{display:none}
  .mask{padding:0}.dlg{border-radius:0;min-height:100%;padding:14px}
  .items{min-width:560px}
- .bnav{display:grid;grid-template-columns:repeat(4,1fr);position:fixed;left:0;right:0;bottom:0;z-index:50;background:var(--surface);border-top:1px solid var(--line);padding:4px 4px calc(4px + env(safe-area-inset-bottom,0px))}
- .bnav button{position:relative;border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 2px;font-size:10.5px;color:var(--muted);cursor:pointer;border-radius:10px;min-height:52px}
+ #ttl{display:none}.topbar{gap:8px}.topbar .sp{flex:1}
+ table.srv{min-width:0!important}table.srv,table.srv tbody,table.srv tr,table.srv td,table.srv th{display:block;width:100%!important;box-sizing:border-box}table.srv td{word-break:break-all;padding-top:0}table.srv td *{max-width:100%;white-space:normal!important;box-sizing:border-box}table.srv tr{padding:6px 0;border-bottom:1px solid var(--line)}
+ #gmchip,#modechip{white-space:nowrap}table.items.rt{min-width:0!important}.card2:has(>.scroll>table.rt){background:none;border:0}.card2>.scroll:has(>table.rt){overflow:visible}
+ .pgact{flex-wrap:wrap}.alerts{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .bnav{display:flex;overflow-x:auto;scrollbar-width:none;position:fixed;left:0;right:0;bottom:0;z-index:50;background:var(--surface);border-top:1px solid var(--line);padding:4px 4px calc(4px + env(safe-area-inset-bottom,0px))}
+ .bnav button{flex:1 0 64px;position:relative;border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 2px;font-size:10.5px;color:var(--muted);cursor:pointer;border-radius:10px;min-height:52px}
  .bnav button[aria-current=page]{color:var(--accent);font-weight:700;background:var(--accent-soft)}
  .bnav .n{position:absolute;top:2px;left:calc(50% + 6px);min-width:17px;height:17px;border-radius:9px;background:var(--bad);color:#fff;font-size:10.5px;line-height:17px;text-align:center;padding:0 4px}
 }
@@ -1516,8 +1520,8 @@ function pgDocs(){
   '<button class="alert'+(f==="both"?" warm":"")+'" data-a="docf" data-f="both"><b style="color:var(--ok)">'+c.both+'</b><span>2枚そろっている</span></button>'+
   '<button class="alert'+(f==="one"?" warm":"")+'" data-a="docf" data-f="one"><b>'+c.one+'</b><span>1枚だけ</span></button>'+
   '<button class="alert'+(c.none?" hot":"")+(f==="none"?" warm":"")+'" data-a="docf" data-f="none"><b>'+c.none+'</b><span>書類なし</span></button></div>';
- h+='<div class="card2" style="padding:0"><div class="scroll"><table class="items" style="min-width:760px"><thead><tr><th>案件No</th><th>店舗・件名</th><th>依頼番号 / 案件番号</th><th>作業依頼書</th><th>作業完了報告書</th><th>状態</th></tr></thead><tbody>'+
-  (rows.length?rows.map(function(x){var o=x.o;return '<tr data-a="open" data-id="'+e(o.id)+'" style="cursor:pointer"><td class="nw">'+e(o.no||"")+'</td><td><b>'+e(title(o))+'</b>'+(siteParts(o).jur?' <span class="sub">管轄: '+e(siteParts(o).jur)+'</span>':"")+'<div class="sub">'+e(o.subject||"")+'</div></td><td class="sub">'+e(o.reqNo||"—")+(o.caseNo?' / '+e(o.caseNo):"")+'</td><td>'+docTag(x.d.order,o.id,'order')+'</td><td>'+docTag(x.d.report,o.id,'report')+'</td><td class="nw">'+e((ST[o.status]||"")+(o.provisional?"(仮)":""))+'</td></tr>'}).join(""):'<tr><td colspan="6"><div class="empty">該当する案件はありません</div></td></tr>')+
+ h+='<div class="card2" style="padding:0"><div class="scroll"><table class="items rt" style="min-width:760px"><thead><tr><th>案件No</th><th>店舗・件名</th><th>依頼番号 / 案件番号</th><th>作業依頼書</th><th>作業完了報告書</th><th>状態</th></tr></thead><tbody>'+
+  (rows.length?rows.map(function(x){var o=x.o;return '<tr data-a="open" data-id="'+e(o.id)+'" style="cursor:pointer"><td class="nw" data-l="案件No">'+e(o.no||"")+'</td><td class="rt0"><b>'+e(title(o))+'</b>'+(siteParts(o).jur?' <span class="sub">管轄: '+e(siteParts(o).jur)+'</span>':"")+'<div class="sub">'+e(o.subject||"")+'</div></td><td class="sub" data-l="依頼番号">'+e(o.reqNo||"—")+(o.caseNo?' / '+e(o.caseNo):"")+'</td><td data-l="作業依頼書">'+docTag(x.d.order,o.id,'order')+'</td><td data-l="作業完了報告書">'+docTag(x.d.report,o.id,'report')+'</td><td class="nw" data-l="状態">'+e((ST[o.status]||"")+(o.provisional?"(仮)":""))+'</td></tr>'}).join(""):'<tr><td colspan="6"><div class="empty">該当する案件はありません</div></td></tr>')+
   '</tbody></table></div></div>';
  var LD=(S.settings.looseDocs||[]).concat((S.orph||[]).map(function(d){return {id:"orph:"+d.id,orph:1,name:d.name,url:d.url,kind:d.kind,label:d.kind==="report"?"作業完了報告書":"作業依頼書",fromNo:"",fromSite:"(どの案件にも付いていない保存済みPDF)"}}));
  if(LD.length){
