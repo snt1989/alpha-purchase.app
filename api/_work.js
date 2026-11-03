@@ -116,6 +116,13 @@ function findCaseForMail(all, mail) {
   }
   return null;
 }
+// 作業依頼番号・顧客案件番号(表記ゆれを無視)が同じ既存の案件を探す
+function findByNos(all, n) {
+  const k = (v) => AP.nkNo(v), r = k(n.reqNo), c = k(n.caseNo);
+  if (r.length < 6 && c.length < 6) return null;
+  const live = all.filter((o) => o.status !== 8);
+  return live.find((o) => r.length >= 6 && (k(o.reqNo) === r || k(o.caseNo) === r)) || live.find((o) => c.length >= 6 && (k(o.caseNo) === c || k(o.reqNo) === c)) || null;
+}
 async function relateMail(mail) {
   const flat = (await redis(["HGETALL", K.orders])) || [], all = [];
   for (let i = 0; i + 1 < flat.length; i += 2) { try { all.push(JSON.parse(flat[i + 1])); } catch (e) {} }
@@ -170,6 +177,7 @@ async function registerWork(w, file, ctx) {
   if (w.reqNo) target = all.find((o) => o.provisional && o.reqNo === w.reqNo) || null;
   if (!target && w.caseNo) target = all.find((o) => preMail(o) && (o.caseNo === w.caseNo || String(o.subject || "").indexOf(w.caseNo) >= 0)) || null;
   if (!target && w.caseNo) target = all.find((o) => o.status !== 8 && o.caseNo === w.caseNo && !o.reqNo) || null;
+  if (!target) { const same = findByNos(all, { caseNo: w.caseNo }); if (same && (!w.reqNo || !same.reqNo || AP.nkNo(same.reqNo) !== AP.nkNo(w.reqNo))) target = same; }
   if (!target) target = byStore(all, w.site || w.property);
   if (!target && w.reqNo) { const dup = all.find((o) => o.reqNo === w.reqNo); if (dup) return { state: "duplicate", job: dup }; }
   const now0 = new Date().toISOString();
@@ -314,4 +322,4 @@ async function processAttachments(attachments, pwTexts, ctx) {
   return results;
 }
 
-module.exports = { relateMail, findCaseForMail, splitCombined, unzipPdfs, openZip, pdfText, registerWork, registerReport, processAttachments };
+module.exports = { addRel, findByNos, relateMail, findCaseForMail, splitCombined, unzipPdfs, openZip, pdfText, registerWork, registerReport, processAttachments };

@@ -501,6 +501,16 @@
     if (/^(ローソン|スーパーホテル|ファミリーマート|セブン-?イレブン|ミニストップ|ホテル)/.test(t)) return t;
     return t.length <= 20 && /(店|ホテル|支店|営業所|工場|倉庫|センター)$/.test(t) ? t : "";
   }
+  // メール・PDFの文章から作業依頼番号(例 2610-02011-2851)と顧客案件番号(8桁)を読み取る
+  function nkNo(v) { return String(v || "").toUpperCase().replace(/[^0-9A-Z]/g, ""); }
+  function extractCaseNos(text) {
+    var t = half(String(text || "")), r = "", c = "", m;
+    if ((m = /(\d{4})\s*[-‐‑–ー]\s*(\d{5})\s*[-‐‑–ー]\s*(\d{4})/.exec(t))) r = m[1] + "-" + m[2] + "-" + m[3];
+    if ((m = /(?:顧客案件番号|案件番号|案件No\.?|案件ＮＯ)\s*[:：#]?\s*(?:\d{4}-\d{5}-\d{4}\s*[\/／]\s*)?(\d{8})(?!\d)/i.exec(t))) c = m[1];
+    if (!c && r && (m = /\d{4}-\d{5}-\d{4}\s*[\/／]\s*(\d{6,10})(?!\d)/.exec(t))) c = m[1];
+    if (!c && (m = /(?:^|[^0-9])(\d{8})(?:[^0-9]|$)/.exec(t))) c = m[1];
+    return { reqNo: r, caseNo: c };
+  }
   function parseWorkOrder(text) {
     var t = half(String(text || "")).replace(/\r\n?/g, "\n");
     var lines = t.split("\n").map(function (l) { return l.replace(/[  ]+$/, ""); });
@@ -640,7 +650,7 @@
   ];
 
   return {
-    STATUS: STATUS, KIND: KIND, extractPasswords: extractPasswords, CLIENT: CLIENT, kindOf: kindOf, isWorkOrder: isWorkOrder, isCompletionReport: isCompletionReport, splitJurisdiction: splitJurisdiction, normStore: normStore, storeFromSubject: storeFromSubject, parseCompletionReport: parseCompletionReport, parseWorkOrder: parseWorkOrder, buildWorkPrompt: buildWorkPrompt, normalizeWork: normalizeWork, makeWorkJob: makeWorkJob, workKey: workKey, OWN_DEFAULT: OWN_DEFAULT, SAMPLES: SAMPLES,
+    STATUS: STATUS, KIND: KIND, extractPasswords: extractPasswords, CLIENT: CLIENT, kindOf: kindOf, isWorkOrder: isWorkOrder, isCompletionReport: isCompletionReport, splitJurisdiction: splitJurisdiction, normStore: normStore, storeFromSubject: storeFromSubject, extractCaseNos: extractCaseNos, nkNo: nkNo, parseCompletionReport: parseCompletionReport, parseWorkOrder: parseWorkOrder, buildWorkPrompt: buildWorkPrompt, normalizeWork: normalizeWork, makeWorkJob: makeWorkJob, workKey: workKey, OWN_DEFAULT: OWN_DEFAULT, SAMPLES: SAMPLES,
     half: half, todayJst: todayJst, addDays: addDays, dateOnly: dateOnly, parseDate: parseDate,
     parseEml: parseEml, sniffHeaders: sniffHeaders, parseFrom: parseFrom, decodeHeader: decodeHeader,
     heuristic: heuristic, buildPrompt: buildPrompt, pickJson: pickJson, normalizeExtract: normalizeExtract,

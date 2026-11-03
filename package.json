@@ -7,7 +7,7 @@
   },
   "scripts": {
     "dev": "node dev/server.js",
-    "test": "node test/parse.test.js && node test/api.test.js && node test/inbound.test.js && node test/photo.test.js && node test/status.test.js && node test/link.test.js && node test/workpdf.test.js && node test/split.test.js && node test/premail.test.js && node test/docs.test.js && node test/docs.test.js B"
+    "test": "node test/parse.test.js && node test/nos.test.js && node test/api.test.js && node test/inbound.test.js && node test/photo.test.js && node test/status.test.js && node test/link.test.js && node test/workpdf.test.js && node test/split.test.js && node test/premail.test.js && node test/docs.test.js && node test/docs.test.js B"
   },
   "dependencies": {
     "@zip.js/zip.js": "2.7.62",

@@ -89,6 +89,19 @@ async function ingest(mail, opts) {
       ex.orders = [{ customer: "", contact: f.name, email: f.email, tel: "", subject: mail.subject || "", deliveryDate: "", deliveryTo: "", items: [], urgent: false, note: "", total: null }];
       ex.uncertain.unshift("受注依頼と判定できませんでしたが、指定により登録しました");
     }
+    // 同じ作業依頼番号・顧客案件番号の案件が既にあれば、新しく作らずその案件に関連メールとして紐づける
+    const cn0 = AP.extractCaseNos(mail.subject + "\n" + mail.body);
+    if (!opts.dryRun && !opts.force && (cn0.reqNo || cn0.caseNo)) {
+      const W = require("./_work"), flat0 = (await redis(["HGETALL", K.orders])) || [], all0 = [];
+      for (let i = 0; i + 1 < flat0.length; i += 2) { try { all0.push(JSON.parse(flat0[i + 1])); } catch (e) {} }
+      const ex0 = W.findByNos(all0, cn0);
+      if (ex0) {
+        W.addRel(ex0, mail);
+        ex0.history = (ex0.history || []).concat({ at: now, text: "同じ案件番号のメールを関連メールとして紐づけ: " + (mail.subject || "") });
+        await pipeline([["HSET", K.orders, ex0.id, JSON.stringify(ex0)], ["INCR", K.ver("orders")], ["HSET", K.mails, key, JSON.stringify({ key, at: now, state: "linked", from: mail.from, subject: mail.subject, date: mail.date || "", url: gmUrl(mail.messageId), jobs: [{ id: ex0.id, no: ex0.no }] })], ["INCR", K.ver("mails")]]);
+        return { state: "linked", jobs: [ex0], key, ai: usedAi };
+      }
+    }
     const nos = opts.dryRun ? ex.orders.map(() => "") : await nextNos(ex.orders.length);
     const jobs = AP.makeJobs(ex, mail, { now, nextNo: () => nos.shift(), source: opts.source || "paste" });
     // 本文に作業依頼書のダウンロードリンク(kMailer)がある場合は、案件にリンクを残し、PDF待ちの印を付ける
@@ -98,6 +111,7 @@ async function ingest(mail, opts) {
       const st = AP.storeFromSubject(mail.subject);
       jobs.forEach((j) => { if (!j.site && st) j.site = st; j.pdfLink = lk; j.needsReview = true; if (cn && !j.caseNo) j.caseNo = cn; j.issues = (j.issues || []).concat("作業依頼書PDFが未取込です(リンクから開いて保存し、ホームの「作業依頼書PDFを追加」へ)"); });
     }
+    jobs.forEach((j) => { if (!j.reqNo && cn0.reqNo) j.reqNo = cn0.reqNo; if (!j.caseNo && cn0.caseNo) j.caseNo = cn0.caseNo; });
     if (opts.dryRun) return { state: "draft", jobs, key, ai: usedAi };
 
     const cmds = jobs.map((j) => ["HSET", K.orders, j.id, JSON.stringify(j)]);
