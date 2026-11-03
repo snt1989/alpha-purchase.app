@@ -985,7 +985,13 @@ function sameNoGroups(){
  function f(x){while(par[x]!==x)x=par[x]=par[par[x]];return x}
  L.forEach(function(o){par[o.id]=o.id});
  function link(k,o){if(!k)return;if(seen[k]===undefined)seen[k]=o.id;else par[f(o.id)]=f(seen[k])}
- L.forEach(function(o){link(o.reqNo&&"r:"+o.reqNo,o);link(o.caseNo&&String(o.caseNo).length>=6&&"c:"+o.caseNo,o)});
+ var nk=function(v){return String(v||"").toUpperCase().replace(/[^0-9A-Z]/g,"")};
+ L.forEach(function(o){
+  var r=nk(o.reqNo),c=nk(o.caseNo);if(r.length>=6)link("n:"+r,o);if(c.length>=6)link("n:"+c,o);
+  var t=AP.half(String(o.subject||"")+" "+String(o.mailSubject||""));
+  (t.match(/\d{4}-\d{5}-\d{4}/g)||[]).forEach(function(x){link("n:"+nk(x),o)});
+  (t.match(/(?:^|[^0-9])(\d{8})(?:[^0-9]|$)/g)||[]).forEach(function(x){link("n:"+x.replace(/\D/g,""),o)});
+ });
  var g={};L.forEach(function(o){var r=f(o.id);(g[r]=g[r]||[]).push(o)});
  return Object.keys(g).map(function(k){return g[k]}).filter(function(a){return a.length>1}).map(function(a){
   return a.slice().sort(function(x,y){return (y.status>x.status?1:y.status<x.status?-1:0)||((y.files||[]).length-(x.files||[]).length)||String(x.createdAt||x.no).localeCompare(String(y.createdAt||y.no))})});
