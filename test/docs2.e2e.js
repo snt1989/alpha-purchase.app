@@ -22,7 +22,7 @@ const fs = require("fs"), path = require("path");
   const opt = await p.locator("select.ldsel option").nth(1).getAttribute("value");
   await p.selectOption("select.ldsel", opt); await p.click('[data-a="ldlink"]');
   await p.waitForSelector('[data-a="docf"][data-f="both"] b >> text=1');
-  await p.waitForTimeout(1200); if (await p.locator('h3:has-text("未紐づけの書類")').count()) throw new Error("still loose: " + (await p.innerText("body")).slice(300, 1400));
+  await p.waitForTimeout(1200); if (await p.locator('h3:has-text("未紐づけの書類(0)")').count() !== 1) throw new Error("still loose: " + (await p.innerText("body")).slice(300, 1400));
   await p.click('[data-a="docf"][data-f="all"]'); await p.click('table.items tbody tr'); await p.waitForSelector("#docs");
   console.log("docs screen OK"); await b.close();
 })().catch((e) => { console.error(e); process.exit(1); });
