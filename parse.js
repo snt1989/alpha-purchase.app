@@ -481,16 +481,25 @@
   // 店舗名の整え方: 「365575 ローソン 花巻不動」→「ローソン花巻不動店」、「スーパーホテル 盛岡」→「スーパーホテル盛岡」
   function normStore(str) {
     var t = String(str || "").replace(/　/g, " ").replace(/\s+/g, " ").trim();
+    t = t.replace(/^(?:\s*(?:RE|Re|FW|Fw|FWD|Fwd|返信|転送)\s*[:：]\s*)+/, "").replace(/【[^】]*】|《[^》]*》|\[[^\]]*\]|〈[^〉]*〉/g, " ").replace(/\s+/g, " ").trim();
     t = t.replace(/^(?:[A-Za-z]{0,3}-?\d{3,}\s+)+/, "");
     var m;
     t = t.replace(/[(（][^)）]*[)）]/g, " ").replace(/\s*(?:御中|殿)$/, "").replace(/\s+/g, " ").trim();
     if ((m = /^(ローソン(?:ストア100|スリーエフ)?)\s*(.+)$/.exec(t))) {
-      var rest = m[2]; var k = rest.indexOf("店");
+      var rest = m[2];
+      if (/^各?\s*店|^各/.test(rest)) return ""; var k = rest.indexOf("店");
       if (k >= 0) rest = rest.slice(0, k); else rest = rest.split(" ")[0];
       rest = rest.replace(/\s+/g, ""); return rest ? m[1] + rest + "店" : m[1];
     }
     if ((m = /^(スーパーホテル)\s*(.+)$/.exec(t))) return m[1] + m[2].split(" ")[0];
     return t;
+  }
+  // 件名から店舗名を取り出す(店舗名らしいものだけ。「RE:」「《…》」や用件の文章は含めない)
+  function storeFromSubject(subj) {
+    var t = normStore(String(subj || "").replace(/\d{6,}/g, ""));
+    if (!t) return "";
+    if (/^(ローソン|スーパーホテル|ファミリーマート|セブン-?イレブン|ミニストップ|ホテル)/.test(t)) return t;
+    return t.length <= 20 && /(店|ホテル|支店|営業所|工場|倉庫|センター)$/.test(t) ? t : "";
   }
   function parseWorkOrder(text) {
     var t = half(String(text || "")).replace(/\r\n?/g, "\n");
@@ -631,7 +640,7 @@
   ];
 
   return {
-    STATUS: STATUS, KIND: KIND, extractPasswords: extractPasswords, CLIENT: CLIENT, kindOf: kindOf, isWorkOrder: isWorkOrder, isCompletionReport: isCompletionReport, splitJurisdiction: splitJurisdiction, normStore: normStore, parseCompletionReport: parseCompletionReport, parseWorkOrder: parseWorkOrder, buildWorkPrompt: buildWorkPrompt, normalizeWork: normalizeWork, makeWorkJob: makeWorkJob, workKey: workKey, OWN_DEFAULT: OWN_DEFAULT, SAMPLES: SAMPLES,
+    STATUS: STATUS, KIND: KIND, extractPasswords: extractPasswords, CLIENT: CLIENT, kindOf: kindOf, isWorkOrder: isWorkOrder, isCompletionReport: isCompletionReport, splitJurisdiction: splitJurisdiction, normStore: normStore, storeFromSubject: storeFromSubject, parseCompletionReport: parseCompletionReport, parseWorkOrder: parseWorkOrder, buildWorkPrompt: buildWorkPrompt, normalizeWork: normalizeWork, makeWorkJob: makeWorkJob, workKey: workKey, OWN_DEFAULT: OWN_DEFAULT, SAMPLES: SAMPLES,
     half: half, todayJst: todayJst, addDays: addDays, dateOnly: dateOnly, parseDate: parseDate,
     parseEml: parseEml, sniffHeaders: sniffHeaders, parseFrom: parseFrom, decodeHeader: decodeHeader,
     heuristic: heuristic, buildPrompt: buildPrompt, pickJson: pickJson, normalizeExtract: normalizeExtract,

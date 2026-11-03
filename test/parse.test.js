@@ -150,5 +150,10 @@ console.log("parse tests OK");
   as.strictEqual(A.normStore("ローソン 青森駅前店"), "ローソン青森駅前店");
   as.strictEqual(A.normStore("ローソン横浜町道の駅前店 バックルームの照明が切れた"), "ローソン横浜町道の駅前店");
   as.strictEqual(A.normStore("スーパーホテル盛岡 天然温泉 客室"), "スーパーホテル盛岡");
+  as.strictEqual(A.normStore("RE: スーパーホテル盛岡 3階廊下網戸交換"), "スーパーホテル盛岡");
+  as.strictEqual(A.normStore("RE: 《日程連絡・見積り送付のお願い》ローソン各店"), "");
+  as.strictEqual(A.storeFromSubject("RE: 《日程連絡・見積り送付のお願い》ローソン各店"), "");
+  as.strictEqual(A.storeFromSubject("見積り送付のお願い"), "");
+  as.strictEqual(A.storeFromSubject("Fwd: ローソン花巻不動店 照明交換"), "ローソン花巻不動店");
   as.strictEqual(A.normStore("123456 スーパーホテル 盛岡"), "スーパーホテル盛岡");
   as.strictEqual(A.normStore("セブン-イレブン 盛岡店"), "セブン-イレブン 盛岡店"); console.log("normStore OK"); }

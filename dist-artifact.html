@@ -712,16 +712,25 @@ details summary{cursor:pointer;font-weight:700;font-size:13px}
   // 店舗名の整え方: 「365575 ローソン 花巻不動」→「ローソン花巻不動店」、「スーパーホテル 盛岡」→「スーパーホテル盛岡」
   function normStore(str) {
     var t = String(str || "").replace(/　/g, " ").replace(/\s+/g, " ").trim();
+    t = t.replace(/^(?:\s*(?:RE|Re|FW|Fw|FWD|Fwd|返信|転送)\s*[:：]\s*)+/, "").replace(/【[^】]*】|《[^》]*》|\[[^\]]*\]|〈[^〉]*〉/g, " ").replace(/\s+/g, " ").trim();
     t = t.replace(/^(?:[A-Za-z]{0,3}-?\d{3,}\s+)+/, "");
     var m;
     t = t.replace(/[(（][^)）]*[)）]/g, " ").replace(/\s*(?:御中|殿)$/, "").replace(/\s+/g, " ").trim();
     if ((m = /^(ローソン(?:ストア100|スリーエフ)?)\s*(.+)$/.exec(t))) {
-      var rest = m[2]; var k = rest.indexOf("店");
+      var rest = m[2];
+      if (/^各?\s*店|^各/.test(rest)) return ""; var k = rest.indexOf("店");
       if (k >= 0) rest = rest.slice(0, k); else rest = rest.split(" ")[0];
       rest = rest.replace(/\s+/g, ""); return rest ? m[1] + rest + "店" : m[1];
     }
     if ((m = /^(スーパーホテル)\s*(.+)$/.exec(t))) return m[1] + m[2].split(" ")[0];
     return t;
+  }
+  // 件名から店舗名を取り出す(店舗名らしいものだけ。「RE:」「《…》」や用件の文章は含めない)
+  function storeFromSubject(subj) {
+    var t = normStore(String(subj || "").replace(/\d{6,}/g, ""));
+    if (!t) return "";
+    if (/^(ローソン|スーパーホテル|ファミリーマート|セブン-?イレブン|ミニストップ|ホテル)/.test(t)) return t;
+    return t.length <= 20 && /(店|ホテル|支店|営業所|工場|倉庫|センター)$/.test(t) ? t : "";
   }
   function parseWorkOrder(text) {
     var t = half(String(text || "")).replace(/\r\n?/g, "\n");
@@ -862,7 +871,7 @@ details summary{cursor:pointer;font-weight:700;font-size:13px}
   ];
 
   return {
-    STATUS: STATUS, KIND: KIND, extractPasswords: extractPasswords, CLIENT: CLIENT, kindOf: kindOf, isWorkOrder: isWorkOrder, isCompletionReport: isCompletionReport, splitJurisdiction: splitJurisdiction, normStore: normStore, parseCompletionReport: parseCompletionReport, parseWorkOrder: parseWorkOrder, buildWorkPrompt: buildWorkPrompt, normalizeWork: normalizeWork, makeWorkJob: makeWorkJob, workKey: workKey, OWN_DEFAULT: OWN_DEFAULT, SAMPLES: SAMPLES,
+    STATUS: STATUS, KIND: KIND, extractPasswords: extractPasswords, CLIENT: CLIENT, kindOf: kindOf, isWorkOrder: isWorkOrder, isCompletionReport: isCompletionReport, splitJurisdiction: splitJurisdiction, normStore: normStore, storeFromSubject: storeFromSubject, parseCompletionReport: parseCompletionReport, parseWorkOrder: parseWorkOrder, buildWorkPrompt: buildWorkPrompt, normalizeWork: normalizeWork, makeWorkJob: makeWorkJob, workKey: workKey, OWN_DEFAULT: OWN_DEFAULT, SAMPLES: SAMPLES,
     half: half, todayJst: todayJst, addDays: addDays, dateOnly: dateOnly, parseDate: parseDate,
     parseEml: parseEml, sniffHeaders: sniffHeaders, parseFrom: parseFrom, decodeHeader: decodeHeader,
     heuristic: heuristic, buildPrompt: buildPrompt, pickJson: pickJson, normalizeExtract: normalizeExtract,
@@ -1046,8 +1055,8 @@ var toastT;
 function toast(t){var d=$("#toast");if(d)d.remove();d=document.createElement("div");d.className="toast";d.id="toast";d.textContent=t;document.body.appendChild(d);clearTimeout(toastT);toastT=setTimeout(function(){d.remove()},3200)}
 function pill(o){return '<span class="pill s'+o.status+'">'+e(ST[o.status])+'</span>'}
 function kindTag(o){if(o.kind==="work")return '<span class="tag kd kq">'+e(o.category||"作業")+'</span>';return o.kind==="order"?'<span class="tag kd ko">注文</span>':'<span class="tag kd kq">見積</span>'}
-function subjStore(o){return AP.normStore(String(o.subject||"").replace(/【[^】]*】/g,"").replace(/\d{6,}/g,"").trim())}
-function siteParts(o){var x=AP.splitJurisdiction(o.site||"");return {site:AP.normStore(x.site),jur:o.jurisdiction||x.jurisdiction}}
+function subjStore(o){return AP.storeFromSubject(o.subject)}
+function siteParts(o){var x=AP.splitJurisdiction(o.site||"");var st=AP.normStore(x.site);if(/お願い|ご連絡|日程|見積り?送付|依頼書|ご確認|について|のご/.test(st))st="";return {site:st,jur:o.jurisdiction||x.jurisdiction}}
 function title(o){return siteParts(o).site||(o.customer&&o.customer!=="株式会社アルファパーチェス"?o.customer:"")||subjStore(o)||o.customer||"(店舗・取引先不明)"}
 function flags(o){return (o.urgent?'<span class="tag ug">至急</span>':'')+(o.needsReview&&o.status<=3?'<span class="tag rv">要確認</span>':'')}
 // 見積の回答前は「回答期限」、それ以降は「納期」を追いかける
