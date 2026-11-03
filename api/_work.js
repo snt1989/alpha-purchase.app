@@ -104,10 +104,11 @@ function addRel(o, mail) {
 function findCaseForMail(all, mail) {
   const live = all.filter((o) => o.status !== 8);
   const text = String(mail.subject || "") + "\n" + String(mail.body || "").slice(0, 3000);
-  const reqs = text.match(/\d{4}-\d{5}-\d{4}/g) || [];
-  for (const r of reqs) { const o = live.find((x) => x.reqNo === r); if (o) return o; }
+  const ids = (o) => [o.reqNo, o.caseNo, o.no].map((v) => String(v || "").trim()).filter((v) => v.length >= 6);
+  const flat = text.replace(/[\s　]/g, "");
+  for (const o of live) { if (ids(o).some((v) => flat.indexOf(v) >= 0)) return o; }
   const nums = text.match(/(?:^|[^0-9])(\d{8})(?:[^0-9]|$)/g) || [];
-  for (const n of nums) { const d = n.replace(/\D/g, ""); const o = live.find((x) => x.caseNo === d || String(x.subject || "").indexOf(d) >= 0); if (o) return o; }
+  for (const n of nums) { const d = n.replace(/\D/g, ""); const o = live.find((x) => String(x.subject || "").indexOf(d) >= 0); if (o) return o; }
   const subj = nrm(String(mail.subject || "").replace(/【[^】]*】/g, ""));
   if (subj.length >= 6) {
     const c = live.filter((o) => [o.site, o.subject].some((t) => { const m = nrm(t); return m && lcs(m, subj) >= 6; }));

@@ -968,8 +968,9 @@ function mailsSection(o){
 /* 未処理メールのうち、既存の案件に関係するもの(作業依頼番号・顧客案件番号・店舗名)を自動で関連メールにする */
 function caseForMail(m){
  var live=S.orders.filter(function(o){return o.status!==8}),text=String(m.subject||"")+"\n"+String(m.body||""),i,x;
- var reqs=text.match(/\d{4}-\d{5}-\d{4}/g)||[];for(i=0;i<reqs.length;i++){x=live.filter(function(o){return o.reqNo===reqs[i]})[0];if(x)return x}
- var nums=text.match(/(?:^|[^0-9])(\d{8})(?:[^0-9]|$)/g)||[];for(i=0;i<nums.length;i++){var d=nums[i].replace(/\D/g,"");x=live.filter(function(o){return o.caseNo===d||String(o.subject||"").indexOf(d)>=0})[0];if(x)return x}
+ var flat=text.replace(/[\s　]/g,"");
+ for(i=0;i<live.length;i++){x=live[i];if([x.reqNo,x.caseNo,x.no].some(function(v){v=String(v||"").trim();return v.length>=6&&flat.indexOf(v)>=0}))return x}
+ var nums=text.match(/(?:^|[^0-9])(\d{8})(?:[^0-9]|$)/g)||[];for(i=0;i<nums.length;i++){var d=nums[i].replace(/\D/g,"");x=live.filter(function(o){return String(o.subject||"").indexOf(d)>=0})[0];if(x)return x}
  var sj=aNrm(String(m.subject||"").replace(/【[^】]*】/g,""));
  if(sj.length>=6){var c=live.filter(function(o){return [o.site,o.subject].some(function(t){var n=aNrm(t);return n&&aLcs(n,sj)>=6})});if(c.length===1)return c[0]}
  return null;
@@ -1535,6 +1536,7 @@ document.addEventListener("keydown",function(ev){if(ev.key==="Escape"&&S.dlg){S.
 async function saveSettings(){try{await Store.saveSettings(S.settings)}catch(x){toast("保存に失敗しました: "+(x.message||x.code))}}
 async function reload(noRender){
  var d=await Store.load();S.orders=d.orders;S.mails=d.mails;S.settings=Object.assign({staff:[],own:[]},d.settings||{});
+ if(!reload.busy&&S.mails&&S.mails.length){reload.busy=1;try{await autoLinkMails(true)}catch(x){}reload.busy=0}
  if(!noRender&&!S.dlg){if(S.tab==="import"){renderNav();renderLog()}else render()}
  else renderNav();
 }
