@@ -169,6 +169,7 @@ async function registerWork(w, file, ctx) {
   let target = null;
   if (w.reqNo) target = all.find((o) => o.provisional && o.reqNo === w.reqNo) || null;
   if (!target && w.caseNo) target = all.find((o) => preMail(o) && (o.caseNo === w.caseNo || String(o.subject || "").indexOf(w.caseNo) >= 0)) || null;
+  if (!target && w.caseNo) target = all.find((o) => o.status !== 8 && o.caseNo === w.caseNo && !o.reqNo) || null;
   if (!target) target = byStore(all, w.site || w.property);
   if (!target && w.reqNo) { const dup = all.find((o) => o.reqNo === w.reqNo); if (dup) return { state: "duplicate", job: dup }; }
   const now0 = new Date().toISOString();

@@ -1625,6 +1625,35 @@ function caseForMail(m){
  if(sj.length>=6){var c=live.filter(function(o){return [o.site,o.subject].some(function(t){var n=aNrm(t);return n&&aLcs(n,sj)>=6})});if(c.length===1)return c[0]}
  return null;
 }
+/* 同じ作業依頼番号・顧客案件番号の案件を1件に統合(書類・関連メール・履歴・空欄の情報は残す側に集める) */
+function sameNoGroups(){
+ var L=S.orders.filter(function(o){return o.status!==8}),par={},seen={};
+ function f(x){while(par[x]!==x)x=par[x]=par[par[x]];return x}
+ L.forEach(function(o){par[o.id]=o.id});
+ function link(k,o){if(!k)return;if(seen[k]===undefined)seen[k]=o.id;else par[f(o.id)]=f(seen[k])}
+ L.forEach(function(o){link(o.reqNo&&"r:"+o.reqNo,o);link(o.caseNo&&String(o.caseNo).length>=6&&"c:"+o.caseNo,o)});
+ var g={};L.forEach(function(o){var r=f(o.id);(g[r]=g[r]||[]).push(o)});
+ return Object.keys(g).map(function(k){return g[k]}).filter(function(a){return a.length>1}).map(function(a){
+  return a.slice().sort(function(x,y){return (y.status>x.status?1:y.status<x.status?-1:0)||((y.files||[]).length-(x.files||[]).length)||String(x.createdAt||x.no).localeCompare(String(y.createdAt||y.no))})});
+}
+function mergeInto(k,o){
+ var emp=function(v){return v==null||v===""||(Array.isArray(v)&&!v.length)};
+ Object.keys(o).forEach(function(p){if(["id","no","files","mails","history","photos","provisional","pdfLink","issues"].indexOf(p)>=0)return;if(emp(k[p])&&!emp(o[p]))k[p]=o[p]});
+ var seen={};k.files=(k.files||[]).concat(o.files||[]).filter(function(x){var u=(x.kind||"")+"|"+(x.url||x.asset||x.name);if(seen[u])return false;seen[u]=1;return true});
+ var ms={};k.mails=(k.mails||[]).concat(o.mails||[]).filter(function(x){if(ms[x.key])return false;ms[x.key]=1;return true});
+ if(o.photos&&o.photos.length)k.photos=(k.photos||[]).concat(o.photos);
+ if(o.pdfLink&&!k.pdfLink&&!(k.files||[]).some(function(x){return docKind(x)==="order"}))k.pdfLink=o.pdfLink;
+ k.history=(k.history||[]).concat(o.history||[]).concat({at:new Date().toISOString(),text:"同じ案件番号の案件 "+(o.no||"")+" を統合しました"});
+}
+async function mergeSameNo(quiet){
+ var G=sameNoGroups(),n=0;
+ for(var i=0;i<G.length;i++){var a=G[i],k=a[0];
+  try{for(var j=1;j<a.length;j++)mergeInto(k,a[j]);await Store.saveOrder(k);
+   for(var j2=1;j2<a.length;j2++){await Store.delOrder(a[j2].id);n++}}catch(x){}}
+ if(n){await reload(true);render()}
+ if(!quiet)toast(n?n+" 件を同じ案件番号の案件に統合しました":"統合する案件はありません");
+ return n;
+}
 async function autoLinkMails(quiet){
  var n=0,todo=mailTodo();
  for(var i=0;i<todo.length;i++){var m=todo[i],o=caseForMail(m);if(!o)continue;
@@ -2186,7 +2215,7 @@ document.addEventListener("keydown",function(ev){if(ev.key==="Escape"&&S.dlg){S.
 async function saveSettings(){try{await Store.saveSettings(S.settings)}catch(x){toast("保存に失敗しました: "+(x.message||x.code))}}
 async function reload(noRender){
  var d=await Store.load();S.orders=d.orders;S.mails=d.mails;S.settings=Object.assign({staff:[],own:[]},d.settings||{});
- if(!reload.busy&&S.mails&&S.mails.length){reload.busy=1;try{await autoLinkMails(true)}catch(x){}reload.busy=0}
+ if(!reload.busy){reload.busy=1;try{await mergeSameNo(true);if(S.mails&&S.mails.length)await autoLinkMails(true)}catch(x){}reload.busy=0}
  if(!noRender&&!S.dlg){if(S.tab==="import"){renderNav();renderLog()}else render()}
  else renderNav();
 }
