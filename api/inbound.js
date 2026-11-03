@@ -55,7 +55,7 @@ module.exports = async (req, res) => {
       // 記録(取込ログに出す)
       const key ="g" + (mail.messageId || Date.now()).toString().replace(/[^A-Za-z0-9]/g, "").slice(0, 80);
       const ok = results.filter((r) => ["registered", "merged", "attached", "provisional"].indexOf(r.state) >= 0);
-      await redis(["HSET", K.mails, key, JSON.stringify({ key, at: new Date().toISOString(), state: ok.length ? "registered" : results.some((r) => r.state === "duplicate") ? "duplicate" : "error",
+      await redis(["HSET", K.mails, key, JSON.stringify({ key, docfail: results.some((r) => r.state === "error" || r.state === "no_pdf") || undefined, files: results.filter((r) => r.state === "error" || r.state === "no_pdf").map((r) => r.file).slice(0, 10), at: new Date().toISOString(), state: ok.length ? "registered" : results.some((r) => r.state === "duplicate") ? "duplicate" : "error",
         from: mail.from, subject: mail.subject, date: mail.date || "", url: /^[0-9a-f]{8,}$/i.test(String(mail.messageId || "")) ? "https://mail.google.com/mail/u/0/#all/" + mail.messageId : "", reason: ok.length ? "" : (results.map((r) => r.error || r.state).filter(Boolean).join(" / ").slice(0, 200) || "作業依頼書として読み取れませんでした"), jobs: ok.map((r) => ({ id: "", no: r.no })), files: results })]);
       await redis(["INCR", K.ver("mails")]);
       // パスワードが見つからない・読めない場合は 422(送信側はラベルを付けずに次回やり直す)
