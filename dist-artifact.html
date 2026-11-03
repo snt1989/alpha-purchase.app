@@ -1502,9 +1502,9 @@ function dupGroups(){
 function dupCard(){
  var G=dupGroups();
  if(!G.length)return '<div class="card2"><h3>重複チェック</h3><div class="sub">重複している案件はありません。</div></div>';
- return '<div class="card2"><h3>重複チェック('+G.length+'組)</h3><div class="sub" style="margin-bottom:8px">作業依頼番号・顧客案件番号・店舗と件名が同じ案件です。先頭が残す案件(書類が多い順)で、チェックした案件を削除できます。</div>'+
-  G.map(function(a){return '<div class="gml" style="margin-bottom:10px">'+a.map(function(o,i){return '<label><input type="checkbox" class="dpc" data-id="'+e(o.id)+'"'+(i?" checked":"")+'><span style="min-width:0"><div class="s">'+(i?"":"【残す】")+e(o.no)+' ／ '+e(title(o))+'</div><div class="sub">'+e(o.subject||"")+' ／ '+e(ST[o.status])+' ／ 書類'+(o.files||[]).length+'枚 ／ '+e(o.reqNo||"番号なし")+'</div></span></label>'}).join("")+'</div>'}).join("")+
-  '<button class="btn sm" data-a="dupdel">チェックした案件を削除</button></div>';
+ return '<div class="card2"><h3>重複チェック('+G.length+'組)</h3><div class="sub" style="margin-bottom:8px">作業依頼番号・顧客案件番号・店舗と件名が同じ案件です。先頭が残す案件(書類が多い順)で、チェックした案件を先頭の案件に統合します(書類・元のメール・履歴は残す案件の「関連メール」などに引き継がれ、メールは削除されません)。</div>'+
+  G.map(function(a,gi){return '<div class="gml" style="margin-bottom:10px">'+a.map(function(o,i){return '<label><input type="checkbox" class="dpc" data-g="'+gi+'" data-id="'+e(o.id)+'"'+(i?" checked":"")+'><span style="min-width:0"><div class="s">'+(i?"":"【残す】")+e(o.no)+' ／ '+e(title(o))+'</div><div class="sub">'+e(o.subject||"")+' ／ '+e(ST[o.status])+' ／ 書類'+(o.files||[]).length+'枚 ／ '+e(o.reqNo||"番号なし")+'</div></span></label>'}).join("")+'</div>'}).join("")+
+  '<button class="btn sm" data-a="dupdel">チェックした案件を統合</button></div>';
 }
 async function loadOrph(){if(S.mode!=="server"){S.orph=[];return}try{var r=await post("/api/db",{op:"orphans"});S.orph=r.docs||[]}catch(x){S.orph=[]}if(S.tab==="docs")render()}
 /* ---- 未処理メール: 自動で案件にできなかったメール(受注依頼ではないと判定・読み取り失敗) ---- */
@@ -1647,6 +1647,9 @@ function mergeInto(k,o){
  Object.keys(o).forEach(function(p){if(["id","no","files","mails","history","photos","provisional","pdfLink","issues"].indexOf(p)>=0)return;if(emp(k[p])&&!emp(o[p]))k[p]=o[p]});
  var seen={};k.files=(k.files||[]).concat(o.files||[]).filter(function(x){var u=(x.kind||"")+"|"+(x.url||x.asset||x.name);if(seen[u])return false;seen[u]=1;return true});
  var ms={};k.mails=(k.mails||[]).concat(o.mails||[]).filter(function(x){if(ms[x.key])return false;ms[x.key]=1;return true});
+ var om=o.mail||{},same=om.messageId&&k.mail&&k.mail.messageId===om.messageId;
+ if(!same&&(om.subject||o.mailSubject||o.subject)){var rk=o.mailKey||(om.messageId?"g"+String(om.messageId).replace(/[^A-Za-z0-9]/g,"").slice(0,80):"m:"+o.id);
+  if(!(k.mails||[]).some(function(x){return x.key===rk}))k.mails=(k.mails||[]).concat([{key:rk,subject:om.subject||o.mailSubject||o.subject||"",from:om.from||o.contact||o.customer||"",date:om.date||o.receivedAt||o.createdAt||"",url:om.url||gmUrl(om.messageId)}])}
  if(o.photos&&o.photos.length)k.photos=(k.photos||[]).concat(o.photos);
  if(o.pdfLink&&!k.pdfLink&&!(k.files||[]).some(function(x){return docKind(x)==="order"}))k.pdfLink=o.pdfLink;
  k.history=(k.history||[]).concat(o.history||[]).concat({at:new Date().toISOString(),text:"同じ案件番号の案件 "+(o.no||"")+" を統合しました"});
@@ -2165,11 +2168,16 @@ document.addEventListener("click",async function(ev){
    break}
   case "dupchk":S.dupOn=!S.dupOn;render();if(S.dupOn&&!dupGroups().length)toast("重複している案件はありません");break;
   case "dupdel":{
-   var ids=Array.prototype.filter.call(document.querySelectorAll(".dpc"),function(c){return c.checked}).map(function(c){return c.dataset.id});
-   if(!ids.length){toast("削除する案件をチェックしてください");break}
-   if(t.dataset.armed!=="1"){t.dataset.armed="1";t.textContent="もう一度押すと "+ids.length+" 件を削除";t.classList.add("pri");setTimeout(function(){if(t.isConnected){t.dataset.armed="";t.textContent="チェックした案件を削除";t.classList.remove("pri")}},4000);break}
-   var n=0;for(var i=0;i<ids.length;i++){try{await Store.delOrder(ids[i]);n++}catch(x){}}
-   await reload(true);render();toast(n+" 件削除しました");break}
+   var cks=Array.prototype.filter.call(document.querySelectorAll(".dpc"),function(c){return c.checked});
+   if(!cks.length){toast("統合する案件をチェックしてください");break}
+   if(t.dataset.armed!=="1"){t.dataset.armed="1";t.textContent="もう一度押すと "+cks.length+" 件を統合";t.classList.add("pri");setTimeout(function(){if(t.isConnected){t.dataset.armed="";t.textContent="チェックした案件を統合";t.classList.remove("pri")}},4000);break}
+   var DG=dupGroups(),n=0,byG={};
+   cks.forEach(function(c){(byG[c.dataset.g]=byG[c.dataset.g]||[]).push(c.dataset.id)});
+   for(var gk in byG){var grp=DG[+gk];if(!grp)continue;var keep=grp[0];
+    var ids=byG[gk].filter(function(id){return id!==keep.id});
+    try{ids.forEach(function(id){var o=grp.filter(function(x){return x.id===id})[0];if(o)mergeInto(keep,o)});await Store.saveOrder(keep);
+     for(var q=0;q<ids.length;q++){await Store.delOrder(ids[q]);n++}}catch(x){}}
+   await reload(true);render();toast(n+" 件を統合しました");break}
   case "straydel":{
    var ids=Array.prototype.filter.call(document.querySelectorAll(".stc"),function(c){return c.checked}).map(function(c){return c.dataset.id});
    if(!ids.length){toast("削除する案件をチェックしてください");break}

@@ -13,5 +13,6 @@ const { chromium } = require("playwright");
   const o = await p.evaluate(async () => { const r = await (await fetch("/api/db", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ op: "list", col: "orders" }) })).json(); return (r.docs || []).map((d) => d.data).filter((x) => ["m1","m2","m3","m4"].indexOf(x.id) >= 0); });
   if (o.length !== 1) throw new Error("not merged: " + JSON.stringify(o.map((x) => x.no)));
   if (!o[0].files.length || o[0].subject !== "メール由来" || o[0].reqNo !== "2610-02011-2851") throw new Error("merge content " + JSON.stringify(o[0]));
+  const subs = (o[0].mails || []).map((m) => m.subject).join("|"); if (subs.indexOf("RE: ローソン横浜町道の駅前店 03193190 照明") < 0 || subs.indexOf("別メール") < 0) throw new Error("mails lost: " + subs);
   console.log("merge e2e OK", o[0].no); await b.close();
 })().catch((e) => { console.error(e); process.exit(1); });
