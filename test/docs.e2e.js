@@ -15,7 +15,7 @@ const nm = path.join(__dirname, "../node_modules/pdfjs-dist/build/");
   await p.reload(); await p.waitForSelector(".pghead");
   await p.click('[data-a="tab"][data-t="list"]'); await p.waitForSelector('[data-a="open"]');
   await p.click('[data-a="open"]');
-  await p.waitForSelector("#docs");
+  await p.click('[data-a="dtab"][data-p="docs"]'); await p.waitForSelector("#docs");
   await p.waitForFunction(() => document.querySelectorAll("#docs .dbody img").length >= 2, null, { timeout: 30000 });
   const n = await p.locator("#docs .dbody img").count(); if (n < 2) throw new Error("images " + n);
   await p.locator("#docs").scrollIntoViewIfNeeded();

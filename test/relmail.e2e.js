@@ -13,7 +13,7 @@ const { chromium } = require("playwright");
   await sel.selectOption(opt); await p.click('[data-a="maillink"]');
   await p.waitForSelector("text=未処理のメールはありません");
   await p.click('[data-a="tab"][data-t="list"]'); await p.waitForSelector('[data-a="open"]'); await p.click('[data-a="open"]');
-  await p.waitForSelector("#relm"); const t = await p.innerText("#relm");
+  await p.click('[data-a="dtab"][data-p="docs"]'); await p.waitForSelector("#relm"); const t = await p.innerText("#relm");
   if (!t.includes("無関係なご案内メール") || !t.includes("ご連絡 12345678")) throw new Error("not linked: " + t);
   await p.click('[data-a="mlunlink"]'); await p.waitForSelector("text=まだありません", { timeout: 8000 }).catch(() => {});
   console.log("relmail e2e OK"); await b.close();

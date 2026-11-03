@@ -109,6 +109,13 @@ pre.code{background:var(--code-bg);color:var(--code-ink);border-radius:10px;padd
 .dlg{background:var(--surface);border-radius:14px;width:min(900px,100%);padding:18px 20px;display:flex;flex-direction:column;gap:14px}
 .dlg h2{font-family:var(--f-head);margin:0;font-size:18px}
 .sec{border:1px solid var(--line);border-radius:12px;padding:12px 14px}.sec>h3{margin:0 0 10px;font-size:13px;color:var(--muted);font-family:var(--f-head);letter-spacing:.04em}
+.sumc{background:var(--bg);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:6px}
+.sumc .st1{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.sumc .st1 b{font-size:18px;font-family:var(--f-head)}
+.sumc .st2{display:flex;gap:6px 16px;flex-wrap:wrap;font-size:13px;color:var(--muted)}.sumc .st3{display:flex;gap:8px;flex-wrap:wrap;margin-top:2px}
+.tabs{display:flex;gap:2px;border-bottom:2px solid var(--line);overflow-x:auto;scrollbar-width:none}
+.tb{border:0;background:none;padding:10px 14px;font-size:14px;color:var(--muted);cursor:pointer;white-space:nowrap;border-bottom:3px solid transparent;margin-bottom:-2px;min-height:44px}
+.tb.on{color:var(--accent);font-weight:700;border-bottom-color:var(--accent)}.tb .cnt{display:inline-block;min-width:18px;padding:0 5px;border-radius:9px;background:var(--line);color:var(--ink);font-size:11px;line-height:18px;text-align:center}
+.tp{display:none;flex-direction:column;gap:14px}.tp.on{display:flex}
 .stp{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:2px 0}.stp::-webkit-scrollbar{display:none}
 .stc{flex:1 0 auto;border:1px solid var(--line);background:var(--bg);color:var(--muted);border-radius:999px;padding:7px 12px;font-size:12.5px;cursor:pointer;white-space:nowrap;min-height:34px}
 .stc.past{background:var(--accent-soft);color:var(--ink)}.stc.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
@@ -1753,24 +1760,34 @@ async function renderDocs(o){
  }
 }
 function openJob(o,opt){
- opt=opt||{};var draft=!!opt.draft;S.dlg={job:o,draft:draft,key:opt.key||""};
+ opt=opt||{};var draft=!!opt.draft;S.dlg={job:o,draft:draft,key:opt.key||""};if(S.dlgFor!==o.id){S.dlgTab="info";S.dlgFor=o.id}
  var staff=S.settings.staff||[];
  var h='<div class="mask" id="mask"><div class="dlg" role="dialog" aria-modal="true"><div class="acts"><h2>'+(draft?(o.no?"案件の登録(確認)":"新規登録"):"案件 "+e(o.no)+' <span class="sub" style="font-family:inherit;font-weight:500">'+e(title(o))+'</span>')+'</h2><span class="row2">'+(o.source?(o.pdfLink?'<a class="btn sm out" href="'+e(o.pdfLink)+'" target="_blank" rel="noopener">作業依頼書を開く</a>':"")+'<span class="sub">'+e(SRC[o.source]||o.source)+(o.parsedBy==="ai"?"・AI解析":o.parsedBy==="rule"?"・簡易解析":o.parsedBy==="form"?"・書式から読取":"")+'</span>':"")+'</span></div>';
  if((o.issues||[]).length)h+='<div class="issues"><b>読み取りで気になった点</b><ul>'+o.issues.map(function(x){return '<li>'+e(x)+'</li>'}).join("")+'</ul></div>';
+ var sp=siteParts(o),addr=o.deliveryTo||"",tel=o.siteTel||o.tel||"";
+ h+='<div class="sumc"><div class="st1"><b>'+e(title(o))+'</b>'+(sp.jur?'<span class="tag">管轄 '+e(sp.jur)+'</span>':"")+(o.urgent?'<span class="tag ug">至急</span>':"")+'</div><div class="st2">'+
+  (o.reqNo?'<span>依頼 '+e(o.reqNo)+'</span>':"")+(o.caseNo?'<span>案件 '+e(o.caseNo)+'</span>':"")+(!draft?'<span>'+dueText(o)+'</span>':"")+'</div>'+
+  ((tel||addr)?'<div class="st3">'+(tel?'<a class="btn sm out" href="tel:'+e(String(tel).replace(/[^0-9+]/g,""))+'">電話 '+e(tel)+'</a>':"")+(addr?'<a class="btn sm out" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(addr)+'">地図で見る</a>':"")+'</div>':"")+'</div>';
  h+='<div class="stp" id="stp">'+ST.map(function(s,i){return '<button type="button" class="stc'+(o.status===i?' on':(o.status>i?' past':''))+'" data-a="stch" data-v="'+i+'">'+e(s)+'</button>'}).join("")+'</div>';
+ var tabs=[["info","情報",""],["docs","書類・写真",String((o.files||[]).length+(o.photos||[]).length||"")],["items","見積明細",String((o.items||[]).length||"")],["log","メール・履歴",String(((o.mails||[]).length+(o.mail&&o.mail.body?1:0))||"")]],tab0=S.dlgTab||"info";
+ h+='<div class="tabs" id="dtabs">'+tabs.map(function(t){return '<button type="button" class="tb'+(t[0]===tab0?" on":"")+'" data-a="dtab" data-p="'+t[0]+'">'+t[1]+(t[2]?' <span class="cnt">'+t[2]+'</span>':"")+'</button>'}).join("")+'</div><div class="tp'+(tab0==="info"?" on":"")+'" data-p="info">';
  h+='<section class="sec"><h3>状態・担当</h3><div class="fields">'+'<label>状態<select id="f-status">'+ST.map(function(s,i){return '<option value="'+i+'"'+(o.status===i?" selected":"")+'>'+e(s)+'</option>'}).join("")+'</select></label>'+'<label>種別<select id="f-kind">'+[["work","作業依頼"],["quote","見積依頼"],["order","注文"]].map(function(k){return '<option value="'+k[0]+'"'+((o.kind||"quote")===k[0]?" selected":"")+'>'+k[1]+'</option>'}).join("")+'</select></label>'+'<label>自社の担当<select id="f-staff"><option value="">未定</option>'+staff.map(function(s){return '<option'+(o.staff===s?" selected":"")+'>'+e(s)+'</option>'}).join("")+(o.staff&&staff.indexOf(o.staff)<0?'<option selected>'+e(o.staff)+'</option>':"")+'</select></label>'+'</div><div class="flags">'+'<label class="chk"><input type="checkbox" id="f-urg"'+(o.urgent?" checked":"")+'> 至急</label><label class="chk"><input type="checkbox" id="f-rev"'+(o.needsReview?" checked":"")+'> 要確認(内容を確認したらチェックを外す)</label>'+'</div></section>'+
   '<section class="sec"><h3>店舗・場所</h3><div class="fields">'+'<label class="wide">店舗・物件名<input type="text" id="f-site" value="'+e(siteParts(o).site||(o.pdfLink||o.provisional?subjStore(o):""))+'"></label>'+'<label>管轄<input type="text" id="f-jur" placeholder="例: 岩手南支店" value="'+e(siteParts(o).jur||"")+'"></label>'+'<label>店舗コード<input type="text" id="f-scode" value="'+e(o.storeCode||"")+'"></label>'+'<label>店舗電話<input type="tel" id="f-stel" value="'+e(o.siteTel||"")+'"></label>'+'<label class="wide">作業場所・納品先<input type="text" id="f-to" value="'+e(o.deliveryTo)+'"></label>'+'</div></section>'+
   '<section class="sec"><h3>日程</h3><div class="fields">'+'<label>依頼日<input type="date" id="f-recv" value="'+e(AP.dateOnly(o.receivedAt||o.createdAt))+'"></label>'+'<label>見積提出期限<input type="date" id="f-qdue" value="'+e(o.quoteDue||"")+'"></label>'+'<label>作業予定日<input type="date" id="f-wdate" value="'+e(o.workDate||"")+'"></label>'+'<label>作業日(完了)<input type="date" id="f-ddate" value="'+e(o.doneDate||"")+'"></label>'+'<label>希望納期<input type="date" id="f-due" value="'+e(o.deliveryDate||"")+'"></label>'+'<label class="wide">工期・納期の記載<input type="text" id="f-sched" value="'+e(o.schedule||"")+'"></label>'+'</div></section>'+
   '<section class="sec"><h3>案件番号</h3><div class="fields">'+'<label>作業依頼番号<input type="text" id="f-reqno" value="'+e(o.reqNo||"")+'"></label>'+'<label>顧客案件番号<input type="text" id="f-caseno" value="'+e(o.caseNo||"")+'"></label>'+'<label>見積番号<input type="text" id="f-qno" value="'+e(o.quoteNo||"")+'"></label>'+'<label>区分<input type="text" id="f-cat" value="'+e(o.category||"")+'" placeholder="修繕など"></label>'+'</div></section>'+
   '<section class="sec"><h3>依頼元</h3><div class="fields">'+'<label class="wide">取引先(依頼元)<input type="text" id="f-cust" value="'+e(o.customer)+'"></label>'+'<label>依頼元の担当<input type="text" id="f-contact" value="'+e(o.contact)+'"></label>'+'<label>電話<input type="tel" id="f-tel" value="'+e(o.tel)+'"></label>'+'<label>メール<input type="email" id="f-email" value="'+e(o.email)+'"></label>'+'</div></section>'+
   '<section class="sec"><h3>作業内容</h3><div class="fields">'+'<label class="wide">作業名称・件名<input type="text" id="f-subj" value="'+e(o.subject)+'"></label>'+'<label class="wide">作業内容・仕様<textarea id="f-detail" rows="3">'+e(o.detail||"")+'</textarea></label>'+'<label class="wide">社内メモ<textarea id="f-note" rows="2">'+e(o.note)+'</textarea></label>'+'</div></section>';
+  h+='</div><div class="tp'+(tab0==="docs"?" on":"")+'" data-p="docs">';
   if(!draft)h+=docsSection(o)+mailsSection(o);
  else if((o.files||[]).length)h+='<div class="row2"><b style="font-size:13px">添付</b>'+o.files.map(function(f,i){var href=f.asset?"/_blob/"+f.asset:f.url||"";return href?'<button class="btn sm" data-a="pvopen" data-k="f" data-i="'+i+'">'+e(f.name||"PDF")+' をプレビュー</button>':'<span class="pill" title="サイズが大きいため保存されていません">'+e(f.name||"")+'</span>'}).join("")+'</div>';
  if(!draft)h+=photoSection(o);
+ h+='</div><div class="tp'+(tab0==="items"?" on":"")+'" data-p="items">';
  h+='<h3 style="font-family:var(--f-head);font-size:15px;margin:0">見積明細</h3><div class="scroll"><table class="items" id="items"><thead><tr><th>品名・作業項目</th><th>規格・型番</th><th>数量</th><th>単位</th><th>単価(税抜)</th><th>金額</th><th></th></tr></thead><tbody>'+(o.items&&o.items.length?o.items:[{}]).map(itemRow).join("")+'</tbody></table></div>'+
   '<div class="row2"><button class="btn sm" data-a="addrow">行を追加</button><span class="sp"></span></div><div class="sum" id="sum"></div>';
+ h+='</div><div class="tp'+(tab0==="log"?" on":"")+'" data-p="log">';
  if(o.mail&&o.mail.body)h+='<details><summary>元のメール'+(o.mail.subject?'(件名: '+e(o.mail.subject)+')':"")+'</summary><div class="sub" style="margin-top:4px">'+e(o.mail.from||"")+(o.mail.date?" ／ "+e(new Date(o.mail.date).toLocaleString("ja-JP")):"")+'</div><div class="mailbody">'+e(o.mail.body)+'</div></details>';
  if((o.history||[]).length)h+='<div class="hist"><b style="color:var(--ink)">履歴</b>'+o.history.slice().reverse().map(function(x){return '<div>'+e(new Date(x.at).toLocaleString("ja-JP",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"}))+'　'+e(x.text)+'</div>'}).join("")+'</div>';
+ h+='</div>';
  h+='<div class="acts stk"><span class="row2">'+(draft?'<button class="btn danger" data-a="discard">破棄</button>':'<button class="btn danger" data-a="deljob">削除</button>')+'</span><span class="row2"><button class="btn" data-a="closedlg">閉じる</button>'+(!draft?'<button class="btn out" data-a="advance">次の状態へ</button>':"")+'<button class="btn pri" data-a="savejob">'+(draft?"登録する":"保存")+'</button></span></div></div></div>';
  $("#layer").innerHTML=h;recalc();
  if(!draft)renderDocs(o);
@@ -2069,7 +2086,7 @@ async function pollGm(){
  drawGm();var sr=$("#gmrow");if(sr)sr.innerHTML=gmDetail();
 }
 function gmDetail(){var s=gmState();return s?'<span class="gm '+s.c+'"><i></i>'+e(s.t)+'</span> <span class="sub">'+e(s.d)+'</span>':""}
-function closeDlg(){S.dlg=null;$("#layer").innerHTML="";var rp=$("#rpt");if(rp)rp.remove();closePreview()}
+function closeDlg(){S.dlg=null;S.dlgFor=null;$("#layer").innerHTML="";var rp=$("#rpt");if(rp)rp.remove();closePreview()}
 function newJob(pre){
  var n=new Date().toISOString();pre=pre||{};
  openJob({id:rid(),no:"",kind:"work",quoteDue:"",workDate:"",doneDate:"",site:pre.site||"",reqNo:"",caseNo:"",detail:"",status:0,source:pre.source||"manual",mailKey:pre.mailKey,createdAt:n,receivedAt:n,customer:AP.CLIENT,contact:"",email:"",tel:"",subject:pre.subject||"",items:[],deliveryDate:"",deliveryTo:"",amount:null,staff:"",note:"",urgent:false,needsReview:false,issues:[],history:[]},{draft:true});
@@ -2180,6 +2197,7 @@ document.addEventListener("click",async function(ev){
    S.settings.looseDocs=(S.settings.looseDocs||[]).concat(gone.map(function(f,i){return {id:"ld"+Date.now()+i,name:f.name||ul,url:f.url||"",kind:uk,label:ul,fromNo:uo.no,fromSite:title(uo),at:new Date().toISOString()}}));
    try{await Store.saveOrder(uo);await saveSettings();var wasDlg=!!S.dlg;if(wasDlg)closeDlg();await reload(true);render();toast(ul+"の紐づけを解除しました(「書類の確認」の未紐づけに残ります)");if(wasDlg){var nj=S.orders.filter(function(x){return x.id===uo.id})[0];if(nj)openJob(nj)}}catch(x){toast("解除に失敗しました: "+(x.message||x.code))}
    break}
+  case "dtab":{S.dlgTab=t.dataset.p;Array.prototype.forEach.call(document.querySelectorAll("#dtabs .tb"),function(b){b.classList.toggle("on",b.dataset.p===S.dlgTab)});Array.prototype.forEach.call(document.querySelectorAll(".dlg .tp"),function(d){d.classList.toggle("on",d.dataset.p===S.dlgTab)});var dl=document.querySelector(".mask");if(dl)dl.scrollTop=0;break}
   case "stch":{var sel=$("#f-status");if(sel){sel.value=t.dataset.v;Array.prototype.forEach.call(document.querySelectorAll("#stp .stc"),function(b,ix){b.className="stc"+(ix===+t.dataset.v?" on":ix<+t.dataset.v?" past":"")})}break}
   case "mailauto":await autoLinkMails();break;
   case "mladd":{var rs=$("#relsel"),rm=rs&&(S.mails||[]).filter(function(x){return x.key===rs.value})[0],ro=S.dlg&&S.dlg.job;if(!rm||!ro)break;
