@@ -512,7 +512,7 @@ async function workUpload(files,keepId){
   try{
    var b64=await b64Of(f),r=await post("/api/workpdf",{name:f.name,b64:b64}),x=(r.results||[])[0]||{};
    if(x.code==="no_password"||/password/i.test(x.error||"")){var pw=window.prompt(f.name+" のパスワードを入力してください");if(pw){r=await post("/api/workpdf",{name:f.name,b64:b64,password:pw});x=(r.results||[])[0]||{}}}
-   msg.push(x.state==="docs_added"?f.name+": "+x.no+" に書類を追加しました":x.state==="no_match"?f.name+": 紐づく案件が見つかりません(案件は新規登録しません)":x.state==="registered"?f.name+": 新規登録 "+x.no:x.state==="merged"?f.name+": "+x.no+" の内容を更新しました":x.state==="attached"?f.name+": "+x.no+" に作業完了報告書を追加しました":x.state==="provisional"?f.name+": "+x.no+" を仮登録しました(作業依頼書が届くと確定)":x.state==="duplicate"?f.name+": 登録済み("+x.no+")":x.state==="not_work_order"?f.name+": 作業依頼書の書式ではありません":f.name+": 読み込めませんでした"+(x.error?"("+x.error+")":""));
+   msg.push(x.state==="docs_added"?f.name+": "+x.no+" に書類を追加しました":x.state==="no_match"?f.name+": 紐づく案件が見つかりません(「未紐づけの書類」に保存しました)":x.state==="registered"?f.name+": 新規登録 "+x.no:x.state==="merged"?f.name+": "+x.no+" の内容を更新しました":x.state==="attached"?f.name+": "+x.no+" に作業完了報告書を追加しました":x.state==="provisional"?f.name+": "+x.no+" を仮登録しました(作業依頼書が届くと確定)":x.state==="duplicate"?f.name+": 登録済み("+x.no+")":x.state==="not_work_order"?f.name+": 作業依頼書の書式ではありません":f.name+": 読み込めませんでした"+(x.error?"("+x.error+")":""));
   }catch(err){msg.push(f.name+": "+(err.message||"失敗"))}
  }
  S.busy=false;await reload(true);render();toast(msg.join(" ／ "));
@@ -876,7 +876,7 @@ function pgMail(){
    '<button class="btn sm" data-a="maildone" data-k="'+e(m.key)+'">対応済みにする</button></div></div>'}).join("");
 }
 function pgDocs(){
- if(!S.orphLoaded){S.orphLoaded=true;loadOrph()}
+ if(!S.orphAt||Date.now()-S.orphAt>4000){S.orphAt=Date.now();loadOrph()}
  var L=S.orders.filter(function(o){return o.status!==8}).map(function(o){var d=docState(o);return {o:o,d:d,n:(d.order?1:0)+(d.report?1:0)}});
  var c={all:L.length,both:L.filter(function(x){return x.n===2}).length,one:L.filter(function(x){return x.n===1}).length,none:L.filter(function(x){return x.n===0}).length};
  var f=S.docf||"all",rows=L.filter(function(x){return f==="all"||(f==="both"&&x.n===2)||(f==="one"&&x.n===1)||(f==="none"&&x.n===0)});
@@ -896,10 +896,11 @@ function pgDocs(){
  if(DF.length||DL.length){h+='<div class="card2" style="margin-top:14px;border-color:var(--bad)"><h3>自動でダウンロードできなかった書類('+(DF.length+DL.length)+')</h3><div class="sub" style="margin-bottom:8px">メールに添付ファイルやダウンロードURLがありましたが、自動では取り込めませんでした。手動で保存して「作業依頼書・作業完了報告書追加」から追加してください。</div>'+
   DF.map(function(m){return '<div class="mrow" style="padding:8px 0;border-top:1px solid var(--line)"><b>'+e(m.subject||"(件名なし)")+'</b><div class="sub">'+e(m.from||"")+' '+e(String(m.date||m.at||"").slice(0,16).replace("T"," "))+'</div><div class="sub">添付: '+e((m.files||[]).join("、")||"あり")+(m.reason?' ／ 理由: '+e(m.reason):"")+'</div>'+(m.url?'<a class="btn sm" href="'+e(m.url)+'" target="_blank" rel="noopener">メールを開く</a> ':"")+'<button class="btn sm" data-a="maildone" data-k="'+e(m.key)+'">対応済みにする</button></div>'}).join("")+
   DL.map(function(o){return '<div class="mrow" style="padding:8px 0;border-top:1px solid var(--line)"><b>'+e(title(o))+'</b> <span class="sub">'+e(o.no||"")+'</span><div class="sub">ダウンロードURL(自動取得できませんでした)</div><a class="btn sm" href="'+e(o.pdfLink)+'" target="_blank" rel="noopener">URLを開く</a> <button class="btn sm" data-a="open" data-id="'+e(o.id)+'">案件を開く</button></div>'}).join("")+'</div>'}
- var LD=(S.settings.looseDocs||[]).concat((S.orph||[]).map(function(d){return {id:"orph:"+d.id,orph:1,name:d.name,url:d.url,kind:d.kind,label:d.kind==="report"?"作業完了報告書":"作業依頼書",fromNo:"",fromSite:"(どの案件にも付いていない保存済みPDF)"}}));
+ var LD=(S.settings.looseDocs||[]).concat((S.orph||[]).map(function(d){return {id:"orph:"+d.id,orph:1,name:d.name,url:d.url,kind:d.kind,label:d.kind==="report"?"作業完了報告書":d.kind==="order"?"作業依頼書":"書類",fromNo:"",fromSite:"(どの案件にも付いていない保存済みPDF)"}}));
+ if(!LD.length)h+='<div class="card2" style="margin-top:14px"><h3>未紐づけの書類(0)</h3><div class="sub">案件に紐づいていない書類はありません。</div></div>';
  if(LD.length){
   var opts='<option value="">案件を選ぶ</option>'+S.orders.filter(function(o){return o.status!==8}).map(function(o){return '<option value="'+e(o.id)+'">'+e(o.no+" "+title(o))+'</option>'}).join("");
-  h+='<div class="card2" style="margin-top:14px"><h3>未紐づけの書類('+LD.length+')</h3><div class="sub" style="margin-bottom:8px">案件から外した書類です。案件を選んで、もう一度紐づけできます。不要なものは「削除」で消せます。</div>'+((S.orph||[]).length>1?'<div style="margin-bottom:10px"><button class="btn sm" data-a="ldall">案件に付いていない書類をすべて削除</button></div>':"")+
+  h+='<div class="card2" style="margin-top:14px"><h3>未紐づけの書類('+LD.length+')</h3><div class="sub" style="margin-bottom:8px">案件から外した書類や、取り込んだものの案件に紐づかなかった書類です。案件を選んで紐づけできます。不要なものは「削除」で消せます。</div>'+((S.orph||[]).length>1?'<div style="margin-bottom:10px"><button class="btn sm" data-a="ldall">案件に付いていない書類をすべて削除</button></div>':"")+
    LD.map(function(d){return '<div class="row2" style="align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap"><span class="tag">'+e(d.label||"")+'</span><b style="min-width:0">'+e(d.name)+'</b><span class="sub">元の案件: '+e((d.fromNo||"")+" "+(d.fromSite||""))+'</span><span class="sp"></span>'+
     (d.url?'<a class="btn sm" href="'+e(d.url)+'" target="_blank" rel="noopener">開く</a>':"")+
     '<select class="ldsel" data-id="'+e(d.id)+'">'+opts+'</select><button class="btn sm pri" data-a="ldlink" data-id="'+e(d.id)+'">紐づける</button><button class="btn sm" data-a="lddel" data-id="'+e(d.id)+'">削除</button></div>'}).join("")+'</div>';

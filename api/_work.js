@@ -231,7 +231,16 @@ async function attachDoc(kind, k, file) {
   for (let i = 0; i + 1 < flat.length; i += 2) { try { all.push(JSON.parse(flat[i + 1])); } catch (e) {} }
   const live = all.filter((o) => o.status !== 8);
   const o = (k.reqNo && live.find((x) => x.reqNo === k.reqNo)) || (k.caseNo && (live.find((x) => x.caseNo === k.caseNo) || live.find((x) => String(x.subject || "").indexOf(k.caseNo) >= 0))) || byStore(live, k.site) || null;
-  if (!o) return { state: "no_match" };
+  if (!o) {
+    // 紐づく案件が見つからなくても、ファイルは捨てずに保存して「書類の確認」の未紐づけ書類に出す
+    const b64u = Buffer.from(file.data).toString("base64");
+    if (b64u.length <= MAX_FILE_B64) {
+      const uid = "u" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6) + (kind === "order" ? "-1" : "-r");
+      await pipeline([["SET", "ap:file:" + uid, b64u], ["HSET", "ap:fmeta", uid, JSON.stringify({ id: uid, name: (file && file.name) || "書類.pdf", mime: "application/pdf", job: "", at: new Date().toISOString() })]]);
+      return { state: "no_match", saved: true };
+    }
+    return { state: "no_match" };
+  }
   const now = new Date().toISOString(), cmds = [];
   const label = kind === "order" ? "作業依頼書" : "作業完了報告書";
   const entry = { name: (file && file.name) || label + ".pdf", label, kind };
