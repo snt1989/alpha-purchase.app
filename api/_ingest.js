@@ -95,7 +95,7 @@ async function ingest(mail, opts) {
     const lk = (String(mail.body || "").match(/https:\/\/mailer\.kintoneapp\.com\/[^\s"'<>)）」]+/) || [])[0];
     if (lk) {
       const cn = (String(mail.subject || "").match(/(?:^|[^0-9])(\d{8})(?:[^0-9]|$)/) || [])[1] || "";
-      const st = String(mail.subject || "").replace(/【[^】]*】/g, "").replace(/\d{6,}/g, "").trim();
+      const st = require("../parse").normStore(String(mail.subject || "").replace(/【[^】]*】/g, "").replace(/\d{6,}/g, "").trim());
       jobs.forEach((j) => { if (!j.site && st) j.site = st; j.pdfLink = lk; j.needsReview = true; if (cn && !j.caseNo) j.caseNo = cn; j.issues = (j.issues || []).concat("作業依頼書PDFが未取込です(リンクから開いて保存し、ホームの「作業依頼書PDFを追加」へ)"); });
     }
     if (opts.dryRun) return { state: "draft", jobs, key, ai: usedAi };

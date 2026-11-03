@@ -483,8 +483,13 @@
     var t = String(str || "").replace(/　/g, " ").replace(/\s+/g, " ").trim();
     t = t.replace(/^(?:[A-Za-z]{0,3}-?\d{3,}\s+)+/, "");
     var m;
-    if ((m = /^(ローソン(?:ストア100|スリーエフ)?)\s*(.+)$/.exec(t))) { var rest = m[2].replace(/\s+/g, ""); return m[1] + rest + (/店$/.test(rest) ? "" : "店"); }
-    if ((m = /^(スーパーホテル)\s*(.+)$/.exec(t))) return m[1] + m[2].replace(/\s+/g, "");
+    t = t.replace(/[(（][^)）]*[)）]/g, " ").replace(/\s*(?:御中|殿)$/, "").replace(/\s+/g, " ").trim();
+    if ((m = /^(ローソン(?:ストア100|スリーエフ)?)\s*(.+)$/.exec(t))) {
+      var rest = m[2]; var k = rest.indexOf("店");
+      if (k >= 0) rest = rest.slice(0, k); else rest = rest.split(" ")[0];
+      rest = rest.replace(/\s+/g, ""); return rest ? m[1] + rest + "店" : m[1];
+    }
+    if ((m = /^(スーパーホテル)\s*(.+)$/.exec(t))) return m[1] + m[2].split(" ")[0];
     return t;
   }
   function parseWorkOrder(text) {
