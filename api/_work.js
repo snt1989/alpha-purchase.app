@@ -126,12 +126,17 @@ function findByNos(all, n) {
 async function relateMail(mail) {
   const flat = (await redis(["HGETALL", K.orders])) || [], all = [];
   for (let i = 0; i + 1 < flat.length; i += 2) { try { all.push(JSON.parse(flat[i + 1])); } catch (e) {} }
-  const o = findCaseForMail(all, mail);
-  if (!o) return null;
-  addRel(o, mail);
-  o.history = (o.history || []).concat({ at: new Date().toISOString(), text: "関連メールを自動で紐づけ: " + (mail.subject || "") });
-  await pipeline([["HSET", K.orders, o.id, JSON.stringify(o)], ["INCR", K.ver("orders")]]);
-  return o;
+  // 1通に複数の案件番号があれば、それぞれの案件に関連メールとして紐づける
+  const text = String(mail.subject || "") + "\n" + String(mail.body || "").slice(0, 6000);
+  const hit = [];
+  AP.extractAllCaseNos(text).forEach((en) => { const o = findByNos(all, en); if (o && !hit.some((h) => h.id === o.id)) hit.push(o); });
+  if (!hit.length) { const o = findCaseForMail(all, mail); if (o) hit.push(o); }
+  if (!hit.length) return null;
+  const cmds = [];
+  hit.forEach((o) => { addRel(o, mail); o.history = (o.history || []).concat({ at: new Date().toISOString(), text: "関連メールを自動で紐づけ: " + (mail.subject || "") }); cmds.push(["HSET", K.orders, o.id, JSON.stringify(o)]); });
+  cmds.push(["INCR", K.ver("orders")]);
+  await pipeline(cmds);
+  return hit;
 }
 
 // 作業依頼書と作業完了報告書が1つのPDFに合わさっている場合、種類ごとのPDFに分ける

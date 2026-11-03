@@ -1018,11 +1018,19 @@ async function mergeSameNo(quiet){
  if(!quiet)toast(n?n+" 件を同じ案件番号の案件に統合しました":"統合する案件はありません");
  return n;
 }
+function casesForMail(m){
+ var live=S.orders.filter(function(o){return o.status!==8}),nk=AP.nkNo,hit=[];
+ AP.extractAllCaseNos(String(m.subject||"")+"\n"+String(m.body||"")).forEach(function(en){var r=nk(en.reqNo),c=nk(en.caseNo);
+  var o=live.filter(function(x){return (r.length>=6&&(nk(x.reqNo)===r||nk(x.caseNo)===r))||(c.length>=6&&(nk(x.caseNo)===c||nk(x.reqNo)===c))})[0];
+  if(o&&hit.indexOf(o)<0)hit.push(o)});
+ if(!hit.length){var x=caseForMail(m);if(x)hit.push(x)}
+ return hit;
+}
 async function autoLinkMails(quiet){
  var n=0,todo=mailTodo();
- for(var i=0;i<todo.length;i++){var m=todo[i],o=caseForMail(m);if(!o)continue;
-  linkMail(o,m);m.was=m.state;m.state="done";m.doneAt=new Date().toISOString();
-  try{await Store.saveOrder(o);await Store.saveMail(m);n++}catch(x){m.state=m.was}}
+ for(var i=0;i<todo.length;i++){var m=todo[i],os=casesForMail(m);if(!os.length)continue;
+  os.forEach(function(o){linkMail(o,m)});m.was=m.state;m.state="done";m.doneAt=new Date().toISOString();
+  try{for(var q=0;q<os.length;q++)await Store.saveOrder(os[q]);await Store.saveMail(m);n++}catch(x){m.state=m.was}}
  if(n){await reload(true);render()}
  if(!quiet)toast(n?n+" 件を関連する案件に紐づけました":"紐づけられるメールは見つかりませんでした");
  return n;

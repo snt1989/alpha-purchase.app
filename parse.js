@@ -511,6 +511,22 @@
     if (!c && (m = /(?:^|[^0-9])(\d{8})(?:[^0-9]|$)/.exec(t))) c = m[1];
     return { reqNo: r, caseNo: c };
   }
+  // 1通のメールに複数の案件番号が書かれている場合に、案件ごとの番号と、その行の文章(店舗名など)を返す
+  function extractAllCaseNos(text) {
+    var t = half(String(text || "")), out = [], seen = {}, m, re;
+    function lineOf(idx) { var s = t.lastIndexOf("\n", idx) + 1, e = t.indexOf("\n", idx); return t.slice(s, e < 0 ? t.length : e); }
+    function add(r, c, idx) {
+      var k1 = nkNo(r), k2 = nkNo(c);
+      for (var i = 0; i < out.length; i++) { var o = out[i]; if ((k1 && (nkNo(o.reqNo) === k1)) || (k2 && nkNo(o.caseNo) === k2)) { if (!o.caseNo && c) o.caseNo = c; if (!o.reqNo && r) o.reqNo = r; return; } }
+      out.push({ reqNo: r || "", caseNo: c || "", line: lineOf(idx) });
+    }
+    re = /(\d{4})\s*-\s*(\d{5})\s*-\s*(\d{4})(?:\s*[\/／]\s*(\d{6,10})(?!\d))?/g;
+    while ((m = re.exec(t))) add(m[1] + "-" + m[2] + "-" + m[3], m[4] || "", m.index);
+    re = /(?:顧客案件番号|案件番号|案件No\.?)\s*[:：#]?\s*(\d{8})(?!\d)/gi;
+    while ((m = re.exec(t))) add("", m[1], m.index);
+    if (!out.length) { re = /(?:^|[^0-9])(\d{8})(?=[^0-9]|$)/g; while ((m = re.exec(t))) add("", m[1], m.index); }
+    return out;
+  }
   function parseWorkOrder(text) {
     var t = half(String(text || "")).replace(/\r\n?/g, "\n");
     var lines = t.split("\n").map(function (l) { return l.replace(/[  ]+$/, ""); });
@@ -650,7 +666,7 @@
   ];
 
   return {
-    STATUS: STATUS, KIND: KIND, extractPasswords: extractPasswords, CLIENT: CLIENT, kindOf: kindOf, isWorkOrder: isWorkOrder, isCompletionReport: isCompletionReport, splitJurisdiction: splitJurisdiction, normStore: normStore, storeFromSubject: storeFromSubject, extractCaseNos: extractCaseNos, nkNo: nkNo, parseCompletionReport: parseCompletionReport, parseWorkOrder: parseWorkOrder, buildWorkPrompt: buildWorkPrompt, normalizeWork: normalizeWork, makeWorkJob: makeWorkJob, workKey: workKey, OWN_DEFAULT: OWN_DEFAULT, SAMPLES: SAMPLES,
+    STATUS: STATUS, KIND: KIND, extractPasswords: extractPasswords, CLIENT: CLIENT, kindOf: kindOf, isWorkOrder: isWorkOrder, isCompletionReport: isCompletionReport, splitJurisdiction: splitJurisdiction, normStore: normStore, storeFromSubject: storeFromSubject, extractCaseNos: extractCaseNos, extractAllCaseNos: extractAllCaseNos, nkNo: nkNo, parseCompletionReport: parseCompletionReport, parseWorkOrder: parseWorkOrder, buildWorkPrompt: buildWorkPrompt, normalizeWork: normalizeWork, makeWorkJob: makeWorkJob, workKey: workKey, OWN_DEFAULT: OWN_DEFAULT, SAMPLES: SAMPLES,
     half: half, todayJst: todayJst, addDays: addDays, dateOnly: dateOnly, parseDate: parseDate,
     parseEml: parseEml, sniffHeaders: sniffHeaders, parseFrom: parseFrom, decodeHeader: decodeHeader,
     heuristic: heuristic, buildPrompt: buildPrompt, pickJson: pickJson, normalizeExtract: normalizeExtract,
