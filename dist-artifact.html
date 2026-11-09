@@ -140,6 +140,7 @@ pre.code{background:var(--code-bg);color:var(--code-ink);border-radius:10px;padd
 .hist{font-size:12.5px;color:var(--muted);display:flex;flex-direction:column;gap:2px}
 details summary{cursor:pointer;font-weight:700;font-size:13px}
 .mailbody{white-space:pre-wrap;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;font-size:12.5px;max-height:260px;overflow:auto;margin-top:6px}
+.rvr{color:var(--warn);font-size:12px;margin-top:2px;line-height:1.4}
 .issues{background:var(--warn-soft);color:var(--warn);border-radius:10px;padding:8px 12px;font-size:13px}
 .issues ul{margin:4px 0 0 18px;padding:0}
 .phs{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
@@ -1101,7 +1102,11 @@ function kindTag(o){if(o.kind==="work")return '<span class="tag kd kq">'+e(o.cat
 function subjStore(o){return AP.storeFromSubject(o.subject)}
 function siteParts(o){var x=AP.splitJurisdiction(o.site||"");var st=AP.normStore(x.site);if(/お願い|ご連絡|日程|見積り?送付|依頼書|ご確認|について|のご/.test(st))st="";return {site:st,jur:o.jurisdiction||x.jurisdiction}}
 function title(o){var c=[siteParts(o).site,(o.customer&&o.customer!=="株式会社アルファパーチェス"?o.customer:""),subjStore(o),o.customer],k,v;for(k=0;k<c.length;k++){v=AP.normStore(c[k]||"");if(v)return v}return "(店舗・取引先不明)"}
-function flags(o){return (o.urgent?'<span class="tag ug">至急</span>':'')+(o.needsReview&&o.status<=3?'<span class="tag rv">要確認</span>':'')}
+function reasons(o){var hasO=(o.files||[]).some(function(f){return docKind(f)==="order"&&fileSrc(f)});
+ var r=(o.issues||[]).filter(function(x){if(/PDFが未取込/.test(x))return !hasO;if(/作業依頼書がまだ届いていません/.test(x))return !!o.provisional;return true});
+ if(o.needsReview&&!r.length)r=["理由の記録はありません(手動で要確認にされています)"];return o.needsReview?r:[]}
+function rvLine(o){if(!(o.needsReview&&o.status<=3))return "";var r=reasons(o);return r.length?'<div class="rvr">要確認の理由: '+e(r[0])+(r.length>1?'(ほか'+(r.length-1)+'件)':"")+'</div>':""}
+function flags(o){return (o.urgent?'<span class="tag ug">至急</span>':'')+(o.needsReview&&o.status<=3?'<span class="tag rv" title="'+e(reasons(o).join(" / "))+'">要確認</span>':'')}
 // 見積の回答前は「回答期限」、それ以降は「納期」を追いかける
 function dueLine(j){if(j.kind==="work")return "工期 "+(j.workDate?md(j.workDate):(j.schedule?j.schedule.slice(0,24):"未定"));return (j.kind!=="order"?"回答期限 "+(j.quoteDue?md(j.quoteDue):"未定")+" ／ ":"")+"納期 "+(j.deliveryDate?md(j.deliveryDate):"未定")}
 // 状態ごとに追いかける期限: 見積前=見積提出期限、施工予定=作業予定日(注文は納期)、作業完了=報告期限(作業日+2日)
@@ -1227,7 +1232,7 @@ function pgHome(){
   '<button class="alert'+(late?" hot":"")+'" data-a="flt" data-f="sp:late"><b>'+late+'</b><span>期限超過</span></button>'+
   '<div class="alert static"><b style="font-size:20px">'+yen(monAmt)+'</b><span>今月の受注額(施工予定以降・税抜・'+monO.length+'件)</span></div></div>';
  h+='<div class="home"><div class="col"><div class="card2"><h3>要対応</h3>'+
-  (todo.length?todo.map(function(o){return '<button class="todo" data-a="open" data-id="'+e(o.id)+'"><span class="dt">'+dueText(o)+'</span><span class="tt">'+e(title(o))+' '+kindTag(o)+flags(o)+'<small>'+e(o.subject||itemsText(o))+' ／ '+e(o.no)+'</small></span><span>'+pill(o)+'</span></button>'}).join(""):'<div class="empty">要対応の案件はありません</div>')+
+  (todo.length?todo.map(function(o){return '<button class="todo" data-a="open" data-id="'+e(o.id)+'"><span class="dt">'+dueText(o)+'</span><span class="tt">'+e(title(o))+' '+kindTag(o)+flags(o)+'<small>'+e(o.subject||itemsText(o))+' ／ '+e(o.no)+'</small>'+rvLine(o)+'<small style="display:none"></small></span><span>'+pill(o)+'</span></button>'}).join(""):'<div class="empty">要対応の案件はありません</div>')+
   '</div></div><div class="col"><div class="card2"><h3>進捗</h3>'+ST.map(function(s,i){return '<div class="stat"><span>'+e(s)+'</span><b>'+cnt[i]+'</b></div>'}).join("")+'</div>'+
   '<div class="card2"><h3>最近のメール取込</h3>'+(S.mails.length?sortMails().slice(0,5).map(function(m){return '<div class="stat"><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:190px">'+e(m.subject||"(件名なし)")+'</span><span class="nw">'+mailState(m)+'</span></div>'}).join(""):'<div class="empty" style="padding:12px">まだありません</div>')+'</div></div></div>';
  return h;
@@ -1272,7 +1277,7 @@ function renderList(){
  var L=filtered(),box=$("#lst");if(!box)return;
  if(!L.length){box.innerHTML='<div class="empty">該当する案件がありません</div>';return}
  box.innerHTML='<table class="rt"><thead><tr><th>案件No</th><th>依頼日</th><th>店舗・取引先</th><th>作業・品目</th><th>期限</th><th class="num">金額(税抜)</th><th>担当</th><th>状態</th></tr></thead><tbody>'+
-  L.map(function(o){return '<tr class="row" data-a="open" data-id="'+e(o.id)+'"><td class="rt0 nw" data-l="案件No"><b>'+e(o.no)+'</b>'+kindTag(o)+flags(o)+(o.reqNo?'<div class="sub">依頼 '+e(o.reqNo)+'</div>':'')+'</td>'+
+  L.map(function(o){return '<tr class="row" data-a="open" data-id="'+e(o.id)+'"><td class="rt0 nw" data-l="案件No"><b>'+e(o.no)+'</b>'+kindTag(o)+flags(o)+(o.reqNo?'<div class="sub">依頼 '+e(o.reqNo)+'</div>':'')+rvLine(o)+'</td>'+
    '<td data-l="依頼日" class="nw">'+md(o.receivedAt||o.createdAt)+'</td>'+
    '<td data-l="店舗"><span class="site">'+e(title(o))+'</span>'+(siteParts(o).jur?'<div class="sub">管轄: '+e(siteParts(o).jur)+'</div>':"")+(o.site&&o.customer&&AP.normStore(o.customer)?'<div class="sub">'+e(AP.normStore(o.customer))+'</div>':o.contact?'<div class="sub">'+e(o.contact)+'</div>':"")+'</td>'+
    '<td data-l="作業">'+e(o.subject||itemsText(o))+'</td><td data-l="期限" class="nw">'+dueText(o)+'</td>'+
@@ -1763,7 +1768,8 @@ function openJob(o,opt){
  opt=opt||{};var draft=!!opt.draft;S.dlg={job:o,draft:draft,key:opt.key||""};if(S.dlgFor!==o.id){S.dlgTab="info";S.dlgFor=o.id}
  var staff=S.settings.staff||[];
  var h='<div class="mask" id="mask"><div class="dlg" role="dialog" aria-modal="true"><div class="acts"><h2>'+(draft?(o.no?"案件の登録(確認)":"新規登録"):"案件 "+e(o.no)+' <span class="sub" style="font-family:inherit;font-weight:500">'+e(title(o))+'</span>')+'</h2><span class="row2">'+(o.source?(o.pdfLink?'<a class="btn sm out" href="'+e(o.pdfLink)+'" target="_blank" rel="noopener">作業依頼書を開く</a>':"")+'<span class="sub">'+e(SRC[o.source]||o.source)+(o.parsedBy==="ai"?"・AI解析":o.parsedBy==="rule"?"・簡易解析":o.parsedBy==="form"?"・書式から読取":"")+'</span>':"")+'</span></div>';
- if((o.issues||[]).length)h+='<div class="issues"><b>読み取りで気になった点</b><ul>'+o.issues.map(function(x){return '<li>'+e(x)+'</li>'}).join("")+'</ul></div>';
+ var rs=o.needsReview?reasons(o):(o.issues||[]);
+ if(rs.length)h+='<div class="issues"><b>'+(o.needsReview?'要確認の理由':'読み取りで気になった点')+'</b><ul>'+rs.map(function(x){return '<li>'+e(x)+'</li>'}).join("")+'</ul><div class="sub" style="margin-top:4px">確認できたら「情報」タブの「要確認」のチェックを外して保存してください。</div></div>';
  var sp=siteParts(o),addr=o.deliveryTo||"",tel=o.siteTel||o.tel||"";
  h+='<div class="sumc"><div class="st1"><b>'+e(title(o))+'</b>'+(sp.jur?'<span class="tag">管轄 '+e(sp.jur)+'</span>':"")+(o.urgent?'<span class="tag ug">至急</span>':"")+'</div><div class="st2">'+
   (o.reqNo?'<span>依頼 '+e(o.reqNo)+'</span>':"")+(o.caseNo?'<span>案件 '+e(o.caseNo)+'</span>':"")+(!draft?'<span>'+dueText(o)+'</span>':"")+'</div>'+
