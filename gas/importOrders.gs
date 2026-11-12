@@ -1,4 +1,4 @@
-// アルファ受注ナビ: Gmail の依頼メールを自動で取り込む(Google Apps Script)
+// アルファパーチェス案件管理: Gmail の依頼メールを自動で取り込む(Google Apps Script)
 // 使い方: script.google.com に貼り付け → TOKEN を設定 → トリガーで importOrders を「5分ごと」に実行
 const ENDPOINT = '__ORIGIN__/api/inbound';
 const TOKEN = 'ここに INBOUND_TOKEN を貼り付け';
