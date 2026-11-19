@@ -1,0 +1,16 @@
+{
+  "name": "アルファパーチェス案件管理",
+  "short_name": "案件管理",
+  "description": "株式会社三桜 × アルファパーチェス の案件管理",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f5f5f6",
+  "theme_color": "#d6001d",
+  "lang": "ja",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

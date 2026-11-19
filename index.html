@@ -3,6 +3,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#d6001d">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="案件管理">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="icon" type="image/png" href="data:image/png;base64,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">
 <title>アルファパーチェス案件管理</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Zen+Kaku+Gothic+New:wght@500;700&display=swap">
@@ -455,10 +461,10 @@ function badge(tab){if(tab==="mail"){var k=mailTodo().length;return k?'<span cla
 function renderNav(){
  $("#side").innerHTML='<div class="brand"><span class="plate"><img src="'+LOGO+'" alt="Alpha Purchase"></span><div class="nm">案件管理<small>アルファパーチェス × SANOH</small></div></div>'+
   NAV.map(function(n){return '<button class="nv" data-a="tab" data-t="'+n[0]+'"'+(S.tab===n[0]?' aria-current="page"':"")+'>'+ic(n[2])+'<span>'+n[1]+'</span>'+badge(n[0])+'</button>'}).join("")+
-  '<div class="sidefoot">'+(S.mode==="server"||S.mode==="artifact"?'<div id="gmside"></div>':"")+(S.mode==="server"?"共有データ(サーバー保存)":S.mode==="artifact"?"共有データ(クラウド保存)":"お試しモード(このブラウザ内に保存)")+'</div>';
+  '<div class="sidefoot">'+(S.mode==="server"||S.mode==="artifact"?'<div id="gmside"></div>':"")+(S.mode==="server"&&PWA.ev&&!pwaStandalone()?'<button class="btn sm pri" data-a="pwainst" style="width:100%;margin-bottom:8px">アプリをインストール</button>':"")+(S.mode==="server"?"共有データ(サーバー保存)":S.mode==="artifact"?"共有データ(クラウド保存)":"お試しモード(このブラウザ内に保存)")+'</div>';
  $("#bnav").innerHTML=NAV.filter(function(n){return n[0]!=="cust"}).map(function(n){return '<button data-a="tab" data-t="'+n[0]+'"'+(S.tab===n[0]?' aria-current="page"':"")+'>'+ic(n[2])+n[1]+badge(n[0])+'</button>'}).join("");
  var tl=$("#tlogo");if(tl&&!tl.src)tl.src=LOGO;
- drawGm();
+ drawGm();pwaReg();
  $("#ttl").textContent=(NAV.filter(function(n){return n[0]===S.tab})[0]||[])[1]||"";
  $("#modechip").innerHTML='<span class="chipst'+(S.flags.ai?" on":"")+'" title="'+(S.flags.ai?"Claude(AI)でメールを読み取ります":"ルールで読み取ります(精度は下がります)")+'">'+(S.flags.ai?"AI解析 有効":"簡易解析")+'</span>';
 }
@@ -959,6 +965,23 @@ function strayCard(){
  return '<div class="card2"><h3>アルファパーチェス以外のメールから登録された案件</h3><div class="sub" style="margin-bottom:8px">差出人が alphapurchase.co.jp / gravity-inc001.com 以外のGmailから自動登録された案件です。関係ないものを選んで削除できます。</div>'+
   (L.length?'<div class="gml">'+L.map(function(x){return '<label><input type="checkbox" class="stc" data-id="'+e(x.o.id)+'" checked><span style="min-width:0"><div class="s">'+e(x.o.no)+' ／ '+e(x.subject||x.o.subject||"(件名なし)")+'</div><div class="f">'+e(x.from)+'</div></span><span></span></label>'}).join("")+'</div><div class="row2" style="margin-top:10px"><button class="btn danger" data-a="straydel">チェックした案件を削除</button><span class="sub">'+L.length+' 件</span></div>':'<div class="empty">該当する案件はありません</div>')+'</div>';
 }
+/* ---- アプリとしてインストール(PWA) ---- */
+var PWA={ev:null,done:false};
+function pwaStandalone(){return (window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||window.navigator.standalone===true}
+function pwaIOS(){return /iphone|ipad|ipod/i.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1)}
+window.addEventListener("beforeinstallprompt",function(ev){ev.preventDefault();PWA.ev=ev;try{render()}catch(x){}});
+window.addEventListener("appinstalled",function(){PWA.ev=null;PWA.done=true;try{render();toast("インストールしました")}catch(x){}});
+function pwaReg(){if(PWA.reg||S.mode!=="server"||!("serviceWorker" in navigator)||location.protocol==="file:")return;PWA.reg=1;navigator.serviceWorker.register("/sw.js").catch(function(){})}
+function pwaCard(){
+ if(S.mode!=="server")return '<div class="card2"><h3>アプリとしてインストール</h3><div class="sub">サーバー版(Vercel のURL)で開くと、パソコンやスマホにアプリとしてインストールできます。</div></div>';
+ var h='<div class="card2"><h3>アプリとしてインストール</h3>';
+ if(pwaStandalone()||PWA.done)return h+'<div class="sub">インストール済みです。アプリとして開いています。</div></div>';
+ h+='<div class="sub" style="margin-bottom:8px">ホーム画面やデスクトップにアイコンを追加して、ブラウザのバーなしで開けます。</div>';
+ if(PWA.ev)h+='<button class="btn pri" data-a="pwainst">インストールする</button>';
+ else if(pwaIOS())h+='<ol class="sub" style="margin:0 0 0 18px;padding:0"><li>Safari でこのページを開く</li><li>画面下の共有ボタン(□から↑)をタップ</li><li>「ホーム画面に追加」を選んで「追加」</li></ol>';
+ else h+='<div class="sub">パソコンの Chrome / Edge: アドレスバー右端の「インストール」アイコン(またはメニュー →「アプリをインストール」)から追加できます。<br>Android の Chrome: メニュー →「ホーム画面に追加」または「アプリをインストール」。</div>';
+ return h+'</div>';
+}
 function pgSet(){
  var s=S.settings,own=(s.own&&s.own.length?s.own:AP.OWN_DEFAULT);
  var h='<div class="pghead"><h2 class="pt">設定</h2></div>';
@@ -967,6 +990,7 @@ function pgSet(){
   '<input type="text" id="ns" placeholder="名前を追加" style="width:160px"><button class="btn sm" data-a="addstaff">追加</button></div></div>';
  h+='<div class="card2"><h3>自社名(取引先として扱わない名前)</h3><div class="sub" style="margin-bottom:8px">メールの宛先に書かれる自社名です。取引先と間違えないように使います(1行に1つ)。</div>'+
   '<textarea id="own" rows="4">'+e(own.join("\n"))+'</textarea><div style="margin-top:8px"><button class="btn sm pri" data-a="saveown">保存</button></div></div>';
+ h+=pwaCard();
  h+=strayCard();
  h+='<div class="card2"><h3>バックアップ</h3><div class="row2"><button class="btn" data-a="bkexp">データを書き出す(JSON)</button><button class="btn" data-a="bkimp">書き出したデータを読み込む</button><input type="file" id="bkf" accept=".json,application/json" hidden></div></div>';
  h+='<div class="card2"><div class="acts"><h3 style="margin:0">サーバーの情報</h3>'+(S.mode==="server"?'<button class="btn sm" data-a="srvreload">再確認</button>':"")+'</div><div id="srv" style="margin-top:8px">'+(S.mode==="server"?'<div class="sub">確認しています…</div>':srvLocal())+'</div></div>';
@@ -1532,6 +1556,7 @@ document.addEventListener("click",async function(ev){
    try{await Store.saveOrder(uo);await saveSettings();var wasDlg=!!S.dlg;if(wasDlg)closeDlg();await reload(true);render();toast(ul+"の紐づけを解除しました(「書類の確認」の未紐づけに残ります)");if(wasDlg){var nj=S.orders.filter(function(x){return x.id===uo.id})[0];if(nj)openJob(nj)}}catch(x){toast("解除に失敗しました: "+(x.message||x.code))}
    break}
   case "dtab":{S.dlgTab=t.dataset.p;Array.prototype.forEach.call(document.querySelectorAll("#dtabs .tb"),function(b){b.classList.toggle("on",b.dataset.p===S.dlgTab)});Array.prototype.forEach.call(document.querySelectorAll(".dlg .tp"),function(d){d.classList.toggle("on",d.dataset.p===S.dlgTab)});var dl=document.querySelector(".mask");if(dl)dl.scrollTop=0;break}
+  case "pwainst":{if(PWA.ev){var pe=PWA.ev;PWA.ev=null;pe.prompt();try{await pe.userChoice}catch(x){}render()}break}
   case "stch":{var sel=$("#f-status");if(sel){sel.value=t.dataset.v;Array.prototype.forEach.call(document.querySelectorAll("#stp .stc"),function(b,ix){b.className="stc"+(ix===+t.dataset.v?" on":ix<+t.dataset.v?" past":"")})}break}
   case "mailauto":await autoLinkMails();break;
   case "mladd":{var rs=$("#relsel"),rm=rs&&(S.mails||[]).filter(function(x){return x.key===rs.value})[0],ro=S.dlg&&S.dlg.job;if(!rm||!ro)break;
