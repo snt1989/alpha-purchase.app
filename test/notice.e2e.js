@@ -11,13 +11,17 @@ const { chromium } = require("playwright");
     await p.click("#bell"); await p.waitForSelector("#nt .nti");
     if (!(await p.locator("#nt .nti").allInnerTexts()).join().includes("ローソン花巻不動店")) throw new Error("no case notice");
     const w = await p.evaluate(() => document.documentElement.scrollWidth - innerWidth); if (w > 0) throw new Error("overflow " + w);
-    if (!(await p.locator("#nt .nti").allInnerTexts()).join().includes("アプリ更新")) throw new Error("no changelog");
+    if ((await p.locator("#nt .nti").allInnerTexts()).join().includes("アプリ更新")) throw new Error("changelog in news tab");
+    await p.click('[data-a="nttab"][data-t="app"]'); if (!(await p.locator("#nt .nti").allInnerTexts()).join().includes("アプリ更新")) throw new Error("no changelog");
+    if (await p.locator("#nt .ntf").count()) throw new Error("form in app tab");
+    await p.click('[data-a="nttab"][data-t="news"]');
     await p.click("#bell");
     await p.route(/localhost:3123\/$/, async (r) => { const res = await r.fetch(); r.fulfill({ response: res, body: (await res.text()).replace(/var APP_VER="[^"]+"/, 'var APP_VER="9999"') }); });
     await p.evaluate(() => document.dispatchEvent(new Event("visibilitychange"))); await p.waitForTimeout(800);
-    await p.click("#bell"); if (!(await p.locator("#nt .nti", { hasText: "新しいバージョン" }).count())) throw new Error("no update notice");
+    await p.click("#bell"); await p.click('[data-a="nttab"][data-t="app"]'); if (!(await p.locator("#nt .nti", { hasText: "新しいバージョン" }).count())) throw new Error("no update notice");
     await p.unroute(/localhost:3123\/$/);
-    for (const g of ["連絡事項","対応が必要","新着案件","アプリの更新"]) { if (g === "連絡事項") continue; if (!(await p.locator("#nt .ngh", { hasText: g }).count())) throw new Error("no group " + g); }
+    await p.click('[data-a="nttab"][data-t="news"]');
+    for (const g of ["連絡事項","対応が必要","新着案件"]) { if (g === "連絡事項") continue; if (!(await p.locator("#nt .ngh", { hasText: g }).count())) throw new Error("no group " + g); }
     await p.fill("#nt-t", "明日は棚卸です"); await p.click('[data-a="ntadd"]'); await p.waitForSelector('#nt:has-text("明日は棚卸です")');
     await p.click('[data-a="ntall"]'); if ((await p.innerText("#bellN")).trim() !== "") throw new Error("badge not cleared");
     await p.locator('#nt .nti[data-o]').first().click(); await p.waitForSelector(".dlg"); if (await p.locator("#nt").count()) throw new Error("panel stays");
