@@ -219,6 +219,11 @@ details summary{cursor:pointer;font-weight:700;font-size:13px}
 .nic{font-size:18px;line-height:1.3}.ntx{flex:1;min-width:0}.ntt{font-size:14px;overflow-wrap:anywhere}.ntb,.nts{font-size:12px;color:var(--muted,#667);overflow-wrap:anywhere}
 .ntf{padding:10px 14px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:6px;background:var(--bg)}.ntf input,.ntf textarea{width:100%;font:inherit}
 @media(max-width:720px){.nt{top:52px;right:8px;left:8px;width:auto;max-height:calc(100vh - 70px)}}
+.peb{position:absolute;border:1.5px dashed #1a9b4b;background:#1a9b4b22;border-radius:3px;cursor:pointer}.peb:hover{background:#1a9b4b55}
+.pek{position:absolute;display:flex;align-items:center;justify-content:center;font-weight:900;line-height:1;pointer-events:none;z-index:1;text-shadow:0 0 1px #fff}.pek .peh,.pek .pex{top:-18px}
+.pe.tsel .pek{pointer-events:auto}
+.peq{max-width:900px;margin:0 auto 6px;background:var(--surface);border-radius:10px;padding:8px 12px}.peq summary{cursor:pointer;font-weight:700;font-size:13px}
+.peqg{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin-top:8px}.peqg label{display:flex;flex-direction:column;font-size:12px;gap:2px}.peqg input{min-height:34px;width:auto}
 .rpt .ed:focus{background:#fffbe6}
 .rpt .ed1{outline:none;min-height:1.6em}.rpt .ed1:focus,.rpt .ed1:hover{background:#fffbe6}.rpt figure.off{opacity:.35}.rpt figure.off img{filter:grayscale(1)}.rpt figcaption .btn{margin-top:4px;padding:2px 8px;min-height:26px;font-size:12px}
 .rpt h3{font-size:14px;margin:12px 0 4px;border-left:4px solid #111;padding-left:6px}
@@ -491,8 +496,9 @@ var NAV=[["home","ホーム","home"],["list","案件一覧","list"],["import","�
 function mailTodo(){return (S.mails||[]).filter(function(m){return m.state==="skipped"||m.state==="error"})}
 function badge(tab){if(tab==="mail"){var k=mailTodo().length;return k?'<span class="n">'+k+'</span>':""}if(tab==="list"){var n=S.orders.filter(function(o){return o.status===0}).length;return n?'<span class="n">'+n+'</span>':""}return ""}
 /* ---- アプリの更新情報 ---- */
-var APP_VER="2026-11-19.4";
+var APP_VER="2026-11-19.5";
 var CHANGES=[
+ ["2026-11-19.5","報告書PDFのチェック・入力がかんたんに","PDF編集で「□」をタップするだけで✓が入り、枠をタップするとその枠に文字が収まります。作業日・時間・作業者名・人数は「自動入力」で一括で入ります。"],
  ["2026-11-19.4","お知らせ機能を追加","右上のベルから、期限・要確認・未処理メールなどをまとめて確認できます。アプリが更新されたときもここでお知らせします。"],
  ["2026-11-19.3","PDFを直接編集できます","書類タブの「PDFを編集」から、作業完了報告書などに文字を書き込んだり、白塗りで消したりできます。編集前に戻すことも可能です。"],
  ["2026-11-19.2","作業完了報告書の入力フォーム","案件から報告書の項目を入力して印刷・保存できます。"],
@@ -1173,6 +1179,54 @@ function docsSection(o){
  return h+'</div>';
 }
 /* ---- 書類PDFを直接編集(文字を書き込む・白塗りで消す) ---- */
+/* PDFの中の「□」と罫線(枠)を読み取る: □をタップでチェック、枠をタップでその枠に文字入力 */
+async function peGeom(pg,H){
+ var out={boxes:[],H:[],V:[],labels:{}};
+ try{
+  var tc=await pg.getTextContent();
+  tc.items.forEach(function(it){
+   var s=it.str||"",t=it.transform,fs=Math.abs(t[0])||it.height||9;
+   for(var k=0;k<s.length;k++){var ch=s.charAt(k);if(ch==="□"||ch==="☐"){var w=(it.width||fs)/Math.max(1,s.length);out.boxes.push({x:t[4]+w*k,y:H-t[5]-fs*.84,w:Math.max(w,fs*.9),h:fs*.95})}}
+   var tt=s.replace(/\s/g,"");["作業日","作業時間","作業者名","作業人数"].forEach(function(l){if(tt.indexOf(l)===0&&!out.labels[l])out.labels[l]={x:t[4],y:H-t[5]-fs,w:it.width||fs*l.length,h:fs*1.2}});
+  });
+ }catch(x){}
+ try{
+  var ol=await pg.getOperatorList(),O=window.pdfjsLib.OPS,m=[1,0,0,1,0,0],st=[];
+  var mul=function(a,b){return [a[0]*b[0]+a[2]*b[1],a[1]*b[0]+a[3]*b[1],a[0]*b[2]+a[2]*b[3],a[1]*b[2]+a[3]*b[3],a[0]*b[4]+a[2]*b[5]+a[4],a[1]*b[4]+a[3]*b[5]+a[5]]};
+  var P=function(x,y){return [m[0]*x+m[2]*y+m[4],H-(m[1]*x+m[3]*y+m[5])]};
+  var seg=function(p,q){var dx=Math.abs(p[0]-q[0]),dy=Math.abs(p[1]-q[1]);if(dy<.6&&dx>3)out.H.push({y:(p[1]+q[1])/2,a:Math.min(p[0],q[0]),b:Math.max(p[0],q[0])});else if(dx<.6&&dy>3)out.V.push({x:(p[0]+q[0])/2,a:Math.min(p[1],q[1]),b:Math.max(p[1],q[1])})};
+  for(var n=0;n<ol.fnArray.length;n++){
+   var f=ol.fnArray[n],a=ol.argsArray[n];
+   if(f===O.save)st.push(m.slice());else if(f===O.restore){if(st.length)m=st.pop()}
+   else if(f===O.transform)m=mul(m,a);
+   else if(f===O.constructPath){
+    var ops=a[0],c=a[1],ci=0,cur=null,start=null;
+    for(var q=0;q<ops.length;q++){var op=ops[q];
+     if(op===O.moveTo){cur=P(c[ci],c[ci+1]);start=cur;ci+=2}
+     else if(op===O.lineTo){var nx=P(c[ci],c[ci+1]);ci+=2;if(cur)seg(cur,nx);cur=nx}
+     else if(op===O.rectangle){var x=c[ci],y=c[ci+1],w=c[ci+2],h=c[ci+3];ci+=4;var p1=P(x,y),p2=P(x+w,y),p3=P(x+w,y+h),p4=P(x,y+h);
+      if(Math.abs(p1[1]-p3[1])<1.6)seg(p1,p2);else if(Math.abs(p1[0]-p3[0])<1.6)seg(p1,p4);else{seg(p1,p2);seg(p2,p3);seg(p3,p4);seg(p4,p1)}}
+     else if(op===O.curveTo){ci+=6;cur=null}else if(op===O.curveTo2||op===O.curveTo3){ci+=4;cur=null}
+     else if(op===O.closePath){if(cur&&start)seg(cur,start);cur=start}}
+   }
+  }
+ }catch(x){out.H=[];out.V=[]}
+ out.Vm=peMajor(out.V);
+ return out;
+}
+function peMajor(V){
+ var s=V.slice().sort(function(a,b){return a.x-b.x}),cl=[],runs=[];
+ s.forEach(function(v){var c=cl[cl.length-1];if(c&&v.x-c.x0<1.6)c.v.push(v);else cl.push({x0:v.x,v:[v]})});
+ cl.forEach(function(c){var r=null,x=c.v.reduce(function(t,v){return t+v.x},0)/c.v.length;c.v.sort(function(a,b){return a.a-b.a}).forEach(function(v){if(r&&v.a<=r.b+1.5)r.b=Math.max(r.b,v.b);else{r={x:x,a:v.a,b:v.b};runs.push(r)}})});
+ return runs.filter(function(r){return r.b-r.a>60});
+}
+function peCell(pg,x,y,mj){
+ var t=-1e9,b=1e9,l=-1e9,r=1e9;
+ pg.H.forEach(function(s){if(x>=s.a-1&&x<=s.b+1){if(s.y<y-.5&&s.y>t)t=s.y;if(s.y>y+.5&&s.y<b)b=s.y}});
+ (mj?pg.Vm:pg.V).forEach(function(s){if(y>=s.a-1&&y<=s.b+1){if(s.x<x-.5&&s.x>l)l=s.x;if(s.x>x+.5&&s.x<r)r=s.x}});
+ if(t<-1e8||b>1e8||l<-1e8||r>1e8||b-t>140||r-l>520)return null;
+ return {x:l,y:t,w:r-l,h:b-t};
+}
 var PE=null;
 async function pdfEdit(idx){
  var d=S.dlg;if(!d)return;var f=(d.job.files||[])[idx];if(!f)return;var src=fileSrc(f);if(!src)return;
@@ -1185,9 +1239,11 @@ async function pdfEdit(idx){
   for(var p=1;p<=Math.min(doc.numPages,8);p++){
    var pg=await doc.getPage(p),v1=pg.getViewport({scale:1}),sc=Math.min(1.8,Math.max(.6,(Math.min(window.innerWidth,900)-28)/v1.width)),vp=pg.getViewport({scale:sc}),c=document.createElement("canvas");
    c.width=vp.width;c.height=vp.height;await pg.render({canvasContext:c.getContext("2d"),viewport:vp}).promise;
-   pages.push({url:c.toDataURL("image/jpeg",.85),w:v1.width,h:v1.height,sc:sc,rot:pg.rotate||0});
+   var geo=pg.rotate?{boxes:[],H:[],V:[],Vm:[],labels:{}}:await peGeom(pg,v1.height);
+   pages.push({url:c.toDataURL("image/jpeg",.85),w:v1.width,h:v1.height,sc:sc,rot:pg.rotate||0,boxes:geo.boxes,H:geo.H,V:geo.V,Vm:geo.Vm||[],labels:geo.labels});
   }
-  PE={idx:idx,bytes:bytes,pages:pages,more:doc.numPages>8,ann:[],tool:"text",pt:12,color:"#000000",name:f.name||"書類.pdf",seq:0};
+  var jb=d.job;
+  PE={idx:idx,bytes:bytes,pages:pages,more:doc.numPages>8,ann:[],tool:pages.some(function(p){return p.boxes.length})?"chk":"text",q:{d:AP.dateOnly(jb.doneDate||jb.workDate||"")||today(),s:"",e:"",w:jb.staff||"",n:"1"},pt:12,color:"#000000",name:f.name||"書類.pdf",seq:0};
   drawPdfEdit();
  }catch(x){toast("開けませんでした: "+(x.message||x))}
 }
@@ -1195,11 +1251,13 @@ function drawPdfEdit(){
  var old=$("#pe");if(old)old.remove();if(!PE)return;
  var box=document.createElement("div");box.id="pe";box.className="pe";
  var tb=function(t,l){return '<button class="btn'+(PE.tool===t?' pri':'')+'" data-a="petool" data-t="'+t+'">'+l+'</button>'};
- box.innerHTML='<div class="pebar">'+tb("text","文字を書き込む")+tb("mask","白塗りで消す")+tb("sel","移動・削除")+
+ var hasLb=PE.pages.some(function(p){return Object.keys(p.labels||{}).length});
+ box.innerHTML='<div class="pebar">'+tb("chk","✓ チェック")+tb("text","文字入力")+tb("mask","白塗り")+tb("sel","移動・削除")+
   '<select id="pe-pt" title="文字の大きさ">'+[8,10,12,14,18,24].map(function(n){return '<option value="'+n+'"'+(PE.pt===n?" selected":"")+'>'+n+'pt</option>'}).join("")+'</select>'+
   '<select id="pe-col" title="文字の色"><option value="#000000">黒</option><option value="#d6001d"'+(PE.color==="#d6001d"?" selected":"")+'>赤</option><option value="#1a4fd6"'+(PE.color==="#1a4fd6"?" selected":"")+'>青</option></select>'+
   '<span class="sp"></span><button class="btn" data-a="peundo">1つ戻す</button><button class="btn pri" data-a="pesave">保存して差し替え</button><button class="btn" data-a="peclose">閉じる</button></div>'+
-  '<div class="pehelp">'+({text:"文字を入れたい場所をタップ/クリックして、文字を入力します。",mask:"消したい部分をなぞって四角で囲むと、白く塗りつぶします。",sel:"枠の左上の「≡」をドラッグして移動、「×」で削除します。"})[PE.tool]+(PE.more?" (先頭8ページまで編集できます)":"")+'</div>'+
+  (hasLb?'<details class="peq"><summary>作業日・時間・作業者を自動入力</summary><div class="peqg"><label>作業日<input type="date" id="pq-d" value="'+e(PE.q.d)+'"></label><label>開始<input type="time" id="pq-s" value="'+e(PE.q.s)+'"></label><label>終了<input type="time" id="pq-e" value="'+e(PE.q.e)+'"></label><label>作業者名<input id="pq-w" value="'+e(PE.q.w)+'"></label><label>人数<input id="pq-n" inputmode="numeric" size="3" value="'+e(PE.q.n)+'"></label><button class="btn pri sm" data-a="peqfill">枠に入れる</button></div></details>':"")+
+  '<div class="pehelp">'+({chk:"□(チェック欄)をタップすると✓が入ります。もう一度タップで外せます。",text:"入力したい枠をタップして文字を入力します(枠の中に自動で収まります)。",mask:"消したい部分をなぞって四角で囲むと、白く塗りつぶします。",sel:"枠の左上の「≡」をドラッグして移動、「×」で削除します。"})[PE.tool]+(PE.more?" (先頭8ページまで編集できます)":"")+'</div>'+
   '<div class="pepages">'+PE.pages.map(function(pg,k){return '<div class="pep" data-p="'+k+'" style="width:'+Math.round(pg.w*pg.sc)+'px;height:'+Math.round(pg.h*pg.sc)+'px"><img src="'+pg.url+'" alt="" draggable="false"><div class="pel" data-p="'+k+'"></div></div>'}).join("")+'</div>';
  document.body.appendChild(box);
  box.classList.toggle("tsel",PE.tool==="sel");
@@ -1209,13 +1267,15 @@ function drawPdfEdit(){
 }
 function peRender(k){
  var el=document.querySelector('#pe .pel[data-p="'+k+'"]');if(!el)return;var pg=PE.pages[k];el.innerHTML="";
+ if(PE.tool==="chk")pg.boxes.forEach(function(bx,bi){var hb=document.createElement("div");hb.className="peb";hb.dataset.bi=bi;hb.style.cssText="left:"+(bx.x-3)*pg.sc+"px;top:"+(bx.y-3)*pg.sc+"px;width:"+(bx.w+6)*pg.sc+"px;height:"+(bx.h+6)*pg.sc+"px";el.appendChild(hb)});
  PE.ann.filter(function(a){return a.p===k}).forEach(function(a){
   var n=document.createElement("div");n.dataset.id=a.id;
-  if(a.t==="mask"){n.className="pem";n.style.cssText="left:"+a.x*pg.sc+"px;top:"+a.y*pg.sc+"px;width:"+a.w*pg.sc+"px;height:"+a.h*pg.sc+"px"}
-  else{n.className="pet";n.contentEditable="true";n.spellcheck=false;n.textContent=a.text;n.style.cssText="left:"+a.x*pg.sc+"px;top:"+a.y*pg.sc+"px;font-size:"+a.pt*pg.sc+"px;color:"+a.color;
-   n.oninput=function(){a.text=n.innerText.replace(/\n$/,"")};n.onblur=function(){if(!a.text.trim()){PE.ann=PE.ann.filter(function(x){return x!==a});peRender(k)}}}
-  var h=document.createElement("span");h.className="peh";h.textContent="≡";h.dataset.drag=a.id;n.appendChild(h);
-  var x=document.createElement("span");x.className="pex";x.textContent="×";x.dataset.del=a.id;n.appendChild(x);
+  if(a.t==="chk"){n.className="pek";n.style.cssText="left:"+a.x*pg.sc+"px;top:"+a.y*pg.sc+"px;width:"+a.w*pg.sc+"px;height:"+a.h*pg.sc+"px;font-size:"+a.h*pg.sc*1.1+"px;color:"+a.color;n.textContent="✓"}
+  else if(a.t==="mask"){n.className="pem";n.style.cssText="left:"+a.x*pg.sc+"px;top:"+a.y*pg.sc+"px;width:"+a.w*pg.sc+"px;height:"+a.h*pg.sc+"px"}
+  else{n.className="pet";n.contentEditable="true";n.spellcheck=false;n.appendChild(document.createTextNode(a.text));n.style.cssText="left:"+a.x*pg.sc+"px;top:"+a.y*pg.sc+"px;font-size:"+a.pt*pg.sc+"px;color:"+a.color;
+   n.oninput=function(){var c=n.cloneNode(true);Array.prototype.forEach.call(c.querySelectorAll(".peh,.pex"),function(z){z.remove()});a.text=c.innerHTML.replace(/<div>|<br\s*\/?>/g,"\n").replace(/<[^>]+>/g,"").replace(/&nbsp;/g," ").replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/&amp;/g,"&").replace(/\n$/,"")};n.onblur=function(){if(!PE)return;if(a.born&&Date.now()-a.born<400){a.born=0;setTimeout(function(){n.focus()},0);return}if(!a.text.trim()){PE.ann=PE.ann.filter(function(x){return x!==a});peRender(k)}}}
+  var h=document.createElement("span");h.className="peh";h.textContent="≡";h.contentEditable="false";h.dataset.drag=a.id;n.appendChild(h);
+  var x=document.createElement("span");x.className="pex";x.textContent="×";x.contentEditable="false";x.dataset.del=a.id;n.appendChild(x);
   el.appendChild(n);
  });
 }
@@ -1225,9 +1285,14 @@ function peBind(el){
   var t=ev.target;
   if(t.dataset&&t.dataset.del){PE.ann=PE.ann.filter(function(a){return String(a.id)!==t.dataset.del});peRender(k);ev.preventDefault();return}
   if(t.dataset&&t.dataset.drag){var a=PE.ann.filter(function(x){return String(x.id)===t.dataset.drag})[0];if(a){drag={a:a,ox:ev.clientX,oy:ev.clientY,x:a.x,y:a.y,n:t.parentNode};el.setPointerCapture(ev.pointerId);ev.preventDefault()}return}
+  if(t.classList&&t.classList.contains("peb")){var bi=+t.dataset.bi,bx=pg.boxes[bi],ex=PE.ann.filter(function(a){return a.p===k&&a.t==="chk"&&a.bi===bi})[0];
+   if(ex)PE.ann=PE.ann.filter(function(a){return a!==ex});else PE.ann.push({id:++PE.seq,p:k,t:"chk",bi:bi,x:bx.x-bx.w*.1,y:bx.y-bx.h*.02,w:bx.w*1.2,h:bx.h*1.1,color:PE.color});
+   peRender(k);ev.preventDefault();return}
   if(t!==el)return;
   var rc=el.getBoundingClientRect(),x=(ev.clientX-rc.left)/pg.sc,y=(ev.clientY-rc.top)/pg.sc;
-  if(PE.tool==="text"){var a2={id:++PE.seq,p:k,t:"text",x:x,y:y,text:"",pt:PE.pt,color:PE.color};PE.ann.push(a2);peRender(k);var n2=el.querySelector('[data-id="'+a2.id+'"]');if(n2)n2.focus();ev.preventDefault()}
+  if(PE.tool==="text"){var cl=peCell(pg,x,y),a2={id:++PE.seq,p:k,t:"text",x:x,y:y,text:"",pt:PE.pt,color:PE.color,born:Date.now()};
+   if(cl){a2.pt=Math.min(PE.pt,Math.max(6,Math.floor((cl.h-4)/1.25)));a2.x=cl.x+3;a2.y=cl.y+Math.max(1,(cl.h-a2.pt*1.25)/2)}
+   PE.ann.push(a2);peRender(k);var n2=el.querySelector('[data-id="'+a2.id+'"]');if(n2){n2.focus();try{var rg=document.createRange();rg.setStart(n2.firstChild,0);rg.collapse(true);var sl=getSelection();sl.removeAllRanges();sl.addRange(rg)}catch(x){}}ev.preventDefault()}
   else if(PE.tool==="mask"){start={x:x,y:y,px:ev.clientX-rc.left,py:ev.clientY-rc.top};tmp=document.createElement("div");tmp.className="pem";tmp.style.cssText="left:"+start.px+"px;top:"+start.py+"px;width:0;height:0";el.appendChild(tmp);el.setPointerCapture(ev.pointerId);ev.preventDefault()}
  });
  el.addEventListener("pointermove",function(ev){
@@ -1243,6 +1308,20 @@ function peBind(el){
  };
  el.addEventListener("pointerup",end);el.addEventListener("pointercancel",end);
 }
+function peRgb(h){var n=parseInt(String(h).slice(1),16);return [(n>>16&255)/255,(n>>8&255)/255,(n&255)/255]}
+function peQuickFill(){
+ var g=function(id){var x=document.getElementById(id);return x?x.value.trim():""};
+ PE.q={d:g("pq-d"),s:g("pq-s"),e:g("pq-e"),w:g("pq-w"),n:g("pq-n")};
+ var q=PE.q,vals={"作業日":q.d?q.d.slice(0,4)+"年"+(+q.d.slice(5,7))+"月"+(+q.d.slice(8,10))+"日":"","作業時間":q.s&&q.e?(+q.s.slice(0,2))+":"+q.s.slice(3,5)+" ～ "+(+q.e.slice(0,2))+":"+q.e.slice(3,5):"","作業者名":q.w,"作業人数":q.n?q.n+"名":""},n=0;
+ PE.pages.forEach(function(pg,k){Object.keys(pg.labels||{}).forEach(function(l){
+  var v=vals[l];if(!v)return;var lb=pg.labels[l],lc=peCell(pg,lb.x+2,lb.y+lb.h/2),cl=lc&&peCell(pg,lc.x+lc.w+3,lc.y+lc.h/2);if(!cl)return;if(l==="作業日"||l==="作業時間"){var c2=peCell(pg,lc.x+lc.w+3,lc.y+lc.h/2,true);if(c2&&c2.x>=lc.x+lc.w-1)cl=c2}
+  PE.ann=PE.ann.filter(function(a){return !(a.auto===l)});
+  var pt=Math.min(11,Math.max(6,Math.floor((cl.h-3)/1.25)));
+  if(l==="作業日"||l==="作業時間")PE.ann.push({id:++PE.seq,p:k,t:"mask",x:cl.x+.8,y:cl.y+.8,w:cl.w-1.6,h:cl.h-1.6,auto:l});
+  PE.ann.push({id:++PE.seq,p:k,t:"text",x:cl.x+4,y:cl.y+Math.max(1,(cl.h-pt*1.25)/2),text:v,pt:pt,color:"#000000",auto:l});n++;
+ });peRender(k)});
+ toast(n?n+"か所の枠に入れました。違う所は直接書き換えられます":"入れられる枠が見つかりませんでした");
+}
 function peTextImg(a){
  var K=4,lines=String(a.text||"").split("\n"),c=document.createElement("canvas"),g=c.getContext("2d"),font='"Noto Sans JP","Hiragino Sans","Yu Gothic","Meiryo",sans-serif';
  g.font=(a.pt*K)+"px "+font;var mw=0;lines.forEach(function(l){mw=Math.max(mw,g.measureText(l).width)});
@@ -1252,7 +1331,7 @@ function peTextImg(a){
 }
 async function pdfEditSave(btn){
  if(!PE)return;var d=S.dlg;if(!d)return;
- var anns=PE.ann.filter(function(a){return a.t==="mask"||String(a.text||"").trim()});
+ var anns=PE.ann.filter(function(a){return a.t==="mask"||a.t==="chk"||String(a.text||"").trim()});
  if(!anns.length){toast("書き込みも白塗りもありません");return}
  btn.disabled=true;var old=btn.textContent;btn.textContent="保存中…";
  try{
@@ -1261,7 +1340,8 @@ async function pdfEditSave(btn){
    var a=anns[i],page=pgs[a.p];if(!page)continue;
    if(page.getRotation().angle%360!==0)throw new Error("回転しているページは編集できません");
    var ph=page.getHeight();
-   if(a.t==="mask")page.drawRectangle({x:a.x,y:ph-a.y-a.h,width:a.w,height:a.h,color:L.rgb(1,1,1),borderWidth:0});
+   if(a.t==="chk"){var X=function(u,v){return {x:a.x+a.w*u,y:ph-(a.y+a.h*v)}},c1=L.rgb.apply(null,peRgb(a.color));page.drawLine({start:X(.1,.55),end:X(.4,.92),thickness:1.7,color:c1});page.drawLine({start:X(.4,.92),end:X(1.05,-.1),thickness:1.7,color:c1})}
+   else if(a.t==="mask")page.drawRectangle({x:a.x,y:ph-a.y-a.h,width:a.w,height:a.h,color:L.rgb(1,1,1),borderWidth:0});
    else{var im=await peTextImg(a),img=await pdf.embedPng(im.bytes);page.drawImage(img,{x:a.x,y:ph-a.y-im.h,width:im.w,height:im.h})}
   }
   var out=await pdf.save(),blob=new Blob([out],{type:"application/pdf"}),f=d.job.files[PE.idx],nm=String(f.name||"書類.pdf").replace(/(\(編集済\))?\.pdf$/i,"")+"(編集済).pdf",nf;
@@ -1771,6 +1851,7 @@ document.addEventListener("click",async function(ev){
   case "pdfrestore":pdfRestore(+t.dataset.i);break;
   case "petool":{PE.tool=t.dataset.t;var sv=PE.ann;drawPdfEdit();break}
   case "peundo":{PE.ann.pop();PE.pages.forEach(function(p,k){peRender(k)});break}
+  case "peqfill":peQuickFill();break;
   case "pesave":pdfEditSave(t);break;
   case "peclose":{if(PE&&PE.ann.length&&!confirm("編集内容は保存されていません。閉じますか?"))break;PE=null;var pe0=$("#pe");if(pe0)pe0.remove();break}
   case "stch":{var sel=$("#f-status");if(sel){sel.value=t.dataset.v;Array.prototype.forEach.call(document.querySelectorAll("#stp .stc"),function(b,ix){b.className="stc"+(ix===+t.dataset.v?" on":ix<+t.dataset.v?" past":"")})}break}

@@ -17,7 +17,7 @@ const { chromium } = require("playwright"); const { PDFDocument } = require("pdf
   await p.reload(); await p.waitForSelector(".pghead");
   await p.locator('button[data-t="list"]:visible').first().click(); await p.waitForSelector('[data-a="open"]'); await p.click('[data-a="open"]');
   await p.waitForSelector(".dlg"); await p.click('[data-a="dtab"][data-p="docs"]');
-  await p.click('[data-a="pdfedit"]'); await p.waitForTimeout(4000); console.log("TOAST", await p.evaluate(()=>(document.querySelector(".toast")||{}).innerText), await p.evaluate(()=>!!document.querySelector("#pe")));await p.waitForSelector("#pe .pel", { timeout: 20000 });
+  await p.click('[data-a="pdfedit"]'); await p.waitForSelector("#pe .pel", { timeout: 20000 });
   // 文字を書き込む
   const box = await p.locator("#pe .pel").first().boundingBox();
   await p.mouse.click(box.x + 100, box.y + 250); await p.keyboard.type("追記テスト");
