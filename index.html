@@ -205,7 +205,7 @@ details summary{cursor:pointer;font-weight:700;font-size:13px}
 .pep{position:relative;background:#fff;box-shadow:0 2px 12px #0006;touch-action:pan-y}.pep img{position:absolute;inset:0;width:100%;height:100%;user-select:none;pointer-events:none}
 .pel{position:absolute;inset:0;cursor:crosshair;touch-action:none}.pe.tsel .pel{cursor:default}
 .pem{position:absolute;background:#fff;outline:1.5px dashed var(--accent)}
-.pet{position:absolute;min-width:1.2em;line-height:1.25;white-space:pre;outline:1.5px dashed #888;background:#ffffff00;padding:0 2px;cursor:text}.pet:focus{background:#fffbe6a0;outline-color:var(--accent)}
+.pet{position:absolute;outline:1.5px dashed #888;cursor:text}.pet:focus-within{background:#fffbe6a0;outline-color:var(--accent)}.pet textarea{display:block;border:0;outline:0;background:transparent;resize:none;overflow:hidden;white-space:pre;line-height:1.25;padding:0 2px;margin:0;min-height:0;min-width:1.6em;font-family:inherit;box-sizing:content-box}
 .peh,.pex{position:absolute;top:-18px;width:18px;height:18px;line-height:17px;text-align:center;font-size:12px;border-radius:4px;background:var(--accent);color:#fff;cursor:pointer;display:none;user-select:none}
 .peh{left:0;cursor:move;touch-action:none}.pex{left:20px}
 .pe.tsel .peh,.pe.tsel .pex,.pet:focus-within .peh,.pet:focus-within .pex{display:block}
@@ -496,8 +496,9 @@ var NAV=[["home","ホーム","home"],["list","案件一覧","list"],["import","�
 function mailTodo(){return (S.mails||[]).filter(function(m){return m.state==="skipped"||m.state==="error"})}
 function badge(tab){if(tab==="mail"){var k=mailTodo().length;return k?'<span class="n">'+k+'</span>':""}if(tab==="list"){var n=S.orders.filter(function(o){return o.status===0}).length;return n?'<span class="n">'+n+'</span>':""}return ""}
 /* ---- アプリの更新情報 ---- */
-var APP_VER="2026-11-19.5";
+var APP_VER="2026-11-19.6";
 var CHANGES=[
+ ["2026-11-19.6","PDF編集の文字入力を修正","枠や空白をタップしても文字が入力できない問題を直しました(スマホでもキーボードが開きます)。"],
  ["2026-11-19.5","報告書PDFのチェック・入力がかんたんに","PDF編集で「□」をタップするだけで✓が入り、枠をタップするとその枠に文字が収まります。作業日・時間・作業者名・人数は「自動入力」で一括で入ります。"],
  ["2026-11-19.4","お知らせ機能を追加","右上のベルから、期限・要確認・未処理メールなどをまとめて確認できます。アプリが更新されたときもここでお知らせします。"],
  ["2026-11-19.3","PDFを直接編集できます","書類タブの「PDFを編集」から、作業完了報告書などに文字を書き込んだり、白塗りで消したりできます。編集前に戻すことも可能です。"],
@@ -1272,10 +1273,14 @@ function peRender(k){
   var n=document.createElement("div");n.dataset.id=a.id;
   if(a.t==="chk"){n.className="pek";n.style.cssText="left:"+a.x*pg.sc+"px;top:"+a.y*pg.sc+"px;width:"+a.w*pg.sc+"px;height:"+a.h*pg.sc+"px;font-size:"+a.h*pg.sc*1.1+"px;color:"+a.color;n.textContent="✓"}
   else if(a.t==="mask"){n.className="pem";n.style.cssText="left:"+a.x*pg.sc+"px;top:"+a.y*pg.sc+"px;width:"+a.w*pg.sc+"px;height:"+a.h*pg.sc+"px"}
-  else{n.className="pet";n.contentEditable="true";n.spellcheck=false;n.appendChild(document.createTextNode(a.text));n.style.cssText="left:"+a.x*pg.sc+"px;top:"+a.y*pg.sc+"px;font-size:"+a.pt*pg.sc+"px;color:"+a.color;
-   n.oninput=function(){var c=n.cloneNode(true);Array.prototype.forEach.call(c.querySelectorAll(".peh,.pex"),function(z){z.remove()});a.text=c.innerHTML.replace(/<div>|<br\s*\/?>/g,"\n").replace(/<[^>]+>/g,"").replace(/&nbsp;/g," ").replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/&amp;/g,"&").replace(/\n$/,"")};n.onblur=function(){if(!PE)return;if(a.born&&Date.now()-a.born<400){a.born=0;setTimeout(function(){n.focus()},0);return}if(!a.text.trim()){PE.ann=PE.ann.filter(function(x){return x!==a});peRender(k)}}}
-  var h=document.createElement("span");h.className="peh";h.textContent="≡";h.contentEditable="false";h.dataset.drag=a.id;n.appendChild(h);
-  var x=document.createElement("span");x.className="pex";x.textContent="×";x.contentEditable="false";x.dataset.del=a.id;n.appendChild(x);
+  else{n.className="pet";n.style.cssText="left:"+a.x*pg.sc+"px;top:"+a.y*pg.sc+"px";
+   var ta=document.createElement("textarea");ta.value=a.text;ta.spellcheck=false;ta.rows=1;ta.setAttribute("autocapitalize","off");ta.style.cssText="font-size:"+a.pt*pg.sc+"px;color:"+a.color;
+   var fit=function(){var g=document.createElement("canvas").getContext("2d"),fs=a.pt*pg.sc,ls=ta.value.split("\n"),mw=0;g.font=fs+'px "Noto Sans JP","Hiragino Sans","Yu Gothic",sans-serif';ls.forEach(function(l){mw=Math.max(mw,g.measureText(l).width)});ta.style.width=Math.ceil(mw+fs*1.6+6)+"px";ta.style.height=Math.ceil(fs*1.25*ls.length+2)+"px"};
+   fit();ta.oninput=function(){a.text=ta.value;fit()};
+   ta.onblur=function(){if(!PE)return;if(!a.text.trim()&&!(document.activeElement&&document.activeElement.closest&&document.activeElement.closest(".pet"))){PE.ann=PE.ann.filter(function(x){return x!==a});peRender(k)}};
+   n.appendChild(ta)}
+  var h=document.createElement("span");h.className="peh";h.textContent="≡";h.dataset.drag=a.id;n.appendChild(h);
+  var x=document.createElement("span");x.className="pex";x.textContent="×";x.dataset.del=a.id;n.appendChild(x);
   el.appendChild(n);
  });
 }
@@ -1290,10 +1295,7 @@ function peBind(el){
    peRender(k);ev.preventDefault();return}
   if(t!==el)return;
   var rc=el.getBoundingClientRect(),x=(ev.clientX-rc.left)/pg.sc,y=(ev.clientY-rc.top)/pg.sc;
-  if(PE.tool==="text"){var cl=peCell(pg,x,y),a2={id:++PE.seq,p:k,t:"text",x:x,y:y,text:"",pt:PE.pt,color:PE.color,born:Date.now()};
-   if(cl){a2.pt=Math.min(PE.pt,Math.max(6,Math.floor((cl.h-4)/1.25)));a2.x=cl.x+3;a2.y=cl.y+Math.max(1,(cl.h-a2.pt*1.25)/2)}
-   PE.ann.push(a2);peRender(k);var n2=el.querySelector('[data-id="'+a2.id+'"]');if(n2){n2.focus();try{var rg=document.createRange();rg.setStart(n2.firstChild,0);rg.collapse(true);var sl=getSelection();sl.removeAllRanges();sl.addRange(rg)}catch(x){}}ev.preventDefault()}
-  else if(PE.tool==="mask"){start={x:x,y:y,px:ev.clientX-rc.left,py:ev.clientY-rc.top};tmp=document.createElement("div");tmp.className="pem";tmp.style.cssText="left:"+start.px+"px;top:"+start.py+"px;width:0;height:0";el.appendChild(tmp);el.setPointerCapture(ev.pointerId);ev.preventDefault()}
+  if(PE.tool==="mask"){start={x:x,y:y,px:ev.clientX-rc.left,py:ev.clientY-rc.top};tmp=document.createElement("div");tmp.className="pem";tmp.style.cssText="left:"+start.px+"px;top:"+start.py+"px;width:0;height:0";el.appendChild(tmp);el.setPointerCapture(ev.pointerId);ev.preventDefault()}
  });
  el.addEventListener("pointermove",function(ev){
   var rc=el.getBoundingClientRect();
@@ -1307,6 +1309,12 @@ function peBind(el){
    start=null;tmp=null;peRender(k)}
  };
  el.addEventListener("pointerup",end);el.addEventListener("pointercancel",end);
+ el.addEventListener("click",function(ev){
+  if(PE.tool!=="text"||ev.target!==el)return;
+  var rc=el.getBoundingClientRect(),x=(ev.clientX-rc.left)/pg.sc,y=(ev.clientY-rc.top)/pg.sc,cl=peCell(pg,x,y),a2={id:++PE.seq,p:k,t:"text",x:x,y:y,text:"",pt:PE.pt,color:PE.color};
+  if(cl){a2.pt=Math.min(PE.pt,Math.max(6,Math.floor((cl.h-4)/1.25)));a2.x=cl.x+3;a2.y=cl.y+Math.max(1,(cl.h-a2.pt*1.25)/2)}
+  PE.ann.push(a2);peRender(k);var ta=el.querySelector('[data-id="'+a2.id+'"] textarea');if(ta)ta.focus();
+ });
 }
 function peRgb(h){var n=parseInt(String(h).slice(1),16);return [(n>>16&255)/255,(n>>8&255)/255,(n&255)/255]}
 function peQuickFill(){

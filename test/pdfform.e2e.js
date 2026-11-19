@@ -29,7 +29,7 @@ const { chromium } = require("playwright"); const fs = require("fs");
   // 枠タップで文字入力(案件名の下の「詳細場所」枠)
   await p.click('[data-a="petool"][data-t="text"]');
   const bx = await p.locator("#pe .pel").first().boundingBox(), sc = bx.width / 595.44;
-  await p.mouse.click(bx.x + 120 * sc, bx.y + 400 * sc - 0); await p.keyboard.type("FF什器裏");
+  await p.mouse.click(bx.x + 120 * sc, bx.y + 400 * sc - 0); await p.keyboard.type("FF什器裏"); if ((await p.evaluate(() => document.activeElement.tagName)) !== "TEXTAREA") throw new Error("not focused"); if (await p.locator("#pe .pet textarea").last().inputValue() !== "FF什器裏") throw new Error("typed text lost");
   await p.screenshot({ path: "/tmp/rp/editor.png" });
   await p.click('[data-a="pesave"]'); await p.waitForFunction(() => !document.querySelector("#pe"), null, { timeout: 30000 });
   const o = await p.evaluate(async () => { const r = await (await fetch("/api/db", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ op: "list", col: "orders" }) })).json(); return r.docs.map((d) => d.data).find((x) => x.id === "pf1"); });
