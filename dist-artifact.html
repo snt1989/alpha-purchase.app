@@ -187,13 +187,14 @@ details summary{cursor:pointer;font-weight:700;font-size:13px}
 .rpt th{background:#f1f1f1;width:24%;font-weight:600;white-space:normal}
 .rpt .ed{border:1px solid #888;min-height:70px;padding:6px 8px;white-space:pre-wrap;outline:none}
 .rpt .ed:focus{background:#fffbe6}
+.rpt .ed1{outline:none;min-height:1.6em}.rpt .ed1:focus,.rpt .ed1:hover{background:#fffbe6}.rpt figure.off{opacity:.35}.rpt figure.off img{filter:grayscale(1)}.rpt figcaption .btn{margin-top:4px;padding:2px 8px;min-height:26px;font-size:12px}
 .rpt h3{font-size:14px;margin:12px 0 4px;border-left:4px solid #111;padding-left:6px}
 .rpt .rg{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .rpt .rg figure{margin:0;border:1px solid #888;padding:4px;break-inside:avoid}
 .rpt .rg img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block}
 .rpt .rg figcaption{font-size:12px;padding-top:3px}
 .rpt .rg figcaption b{background:#222;color:#fff;border-radius:3px;padding:0 5px;margin-right:4px;font-weight:500}
-@media print{body>*:not(#rpt){display:none!important}.rpt{position:static;background:none;padding:0;overflow:visible}.rpt .bar{display:none}.rpt .pg{max-width:none;padding:0;border-radius:0}.rpt .ed{border-color:#888}}
+@media print{.noprint{display:none!important}.rpt figure.off{display:none!important}.rpt .ed1:hover{background:none}body>*:not(#rpt){display:none!important}.rpt{position:static;background:none;padding:0;overflow:visible}.rpt .bar{display:none}.rpt .pg{max-width:none;padding:0;border-radius:0}.rpt .ed{border-color:#888}}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(24px + env(safe-area-inset-bottom,0px));background:var(--toast-bg);color:var(--toast-ink);padding:8px 16px;border-radius:8px;z-index:99;font-size:13px;max-width:90vw}
 .login{position:fixed;inset:0;z-index:99;background:var(--side);display:flex;align-items:center;justify-content:center}
 .login form{background:var(--surface);border-radius:12px;padding:28px 26px;width:min(340px,92vw);box-shadow:0 8px 30px #0006;display:flex;flex-direction:column;gap:10px}
@@ -1762,7 +1763,7 @@ function docsSection(o){
  var files=o.files||[],h='<div><b style="font-size:13px">書類</b> <span class="sub">(画像をクリックすると大きく表示)</span></div><div class="docs" id="docs">';
  DOCK.forEach(function(d){
   var idx=-1;files.forEach(function(f,i){if(idx<0&&docKind(f)===d[0]&&fileSrc(f))idx=i});
-  var f=idx>=0?files[idx]:null,up=f?'<button class="btn sm" data-a="undoc" data-id="'+e(o.id)+'" data-k="'+d[0]+'">紐づけ解除</button>':"";
+  var f=idx>=0?files[idx]:null,up=f?'<button class="btn sm" data-a="undoc" data-id="'+e(o.id)+'" data-k="'+d[0]+'">紐づけ解除</button>':"";if(d[0]==="report")up='<button class="btn sm pri" data-a="report">'+(o.report||o.reportText?"報告書を編集":"報告書を作成")+'</button> '+up;
   h+='<div class="doc"><div class="dh"><b>'+d[1]+'</b>'+(f?'<span class="sub" title="'+e(f.name||"")+'">'+e(f.name||"")+'</span>':"")+'<span class="sp"></span>'+(f?'<button class="btn sm" data-a="pvopen" data-k="f" data-i="'+idx+'">拡大</button>':"")+up+'</div>'+
    (f?'<div class="dbody" data-i="'+idx+'"><div class="dempty">読み込み中…</div></div>':'<div class="dempty">まだありません'+(d[0]==="report"?"<br>(メールに付いてきたら自動で入ります)":d[0]==="order"&&o.pdfLink?"<br>メールのリンクから開いて保存し、「書類の確認」から追加できます":"")+'</div>')+'</div>';
  });
@@ -1894,7 +1895,7 @@ function shrinkImage(file){
 }
 function photoSection(o){
  return '<div class="row2"><b style="font-size:13px">写真(<span id="phn">'+(o.photos||[]).length+'</span>枚)</b><span class="sp"></span>'+
-  '<button class="btn sm" data-a="phpick">写真を追加</button><button class="btn sm out" data-a="report">報告書を作成</button>'+
+  '<button class="btn sm" data-a="phpick">写真を追加</button><button class="btn sm out" data-a="report">'+(o.report||o.reportText?"報告書を編集":"報告書を作成")+'</button>'+
   '<input type="file" id="phi" accept="image/*" multiple hidden></div><div class="phs" id="ph">'+photoCards(o.photos||[])+'</div>';
 }
 function photoCards(list){
@@ -1945,31 +1946,35 @@ function openReport(){
  var d=S.dlg;if(!d)return;var o=Object.assign({},d.job);o.photos=readPhotos();d.job.photos=o.photos;
  var box=$("#rpt");if(box)box.remove();
  box=document.createElement("div");box.id="rpt";box.className="rpt";
- var row=function(k,v){return '<tr><th>'+k+'</th><td>'+e(v||"")+'</td></tr>'};
- var wd=o.doneDate||o.workDate||"";
- box.innerHTML='<div class="bar"><span class="sub" style="color:#fff;margin-right:auto;align-self:center">文章は直接書き換えられます</span>'+
+ var R=o.report||{},sp=siteParts(o),wd=o.doneDate||o.workDate||"";
+ var def={to:AP.CLIENT,from:"株式会社三桜"+(o.staff?"　担当: "+o.staff:""),date:today(),jur:sp.jur,site:sp.site+(o.storeCode?"("+o.storeCode+")":""),reqNo:o.reqNo||"",caseNo:o.caseNo||"",name:o.subject||"",place:o.deliveryTo||"",workDate:wd,workTime:"",workers:o.staff||"",result:"完了"};
+ var v=function(k){return R[k]!=null?R[k]:def[k]};
+ var row=function(k,l){return '<tr><th>'+l+'</th><td class="ed1" contenteditable="true" data-k="'+k+'">'+e(v(k)||"")+'</td></tr>'};
+ box.innerHTML='<div class="bar"><span class="sub" style="color:#fff;margin-right:auto;align-self:center">黄色くなる欄は全て直接書き換えられます'+(o.reportEditedAt?'(最終保存 '+e(String(o.reportEditedAt).slice(0,16).replace("T"," "))+')':"")+'</span>'+
+  '<button class="btn" data-a="rpreset">初期値に戻す</button>'+
   (S.flags.ai&&o.photos.length?'<button class="btn" data-a="rpai">写真から文章を作る(AI)</button>':"")+
   '<button class="btn" data-a="rpsave">内容を保存</button><button class="btn pri" data-a="rpprint">印刷 / PDF保存</button><button class="btn" data-a="rpclose">閉じる</button></div>'+
   '<div class="pg"><h1>作業完了報告書</h1>'+
-  '<table><tbody>'+row("宛先",AP.CLIENT)+row("提出元","株式会社三桜"+(o.staff?"　担当: "+o.staff:""))+row("提出日",today())+
-  row("管轄",siteParts(o).jur)+row("店舗・物件名",siteParts(o).site+(o.storeCode?"("+o.storeCode+")":""))+row("作業依頼番号",o.reqNo)+row("顧客案件番号",o.caseNo)+
-  row("作業名称",o.subject)+row("作業場所",o.deliveryTo)+row("作業日",wd)+'</tbody></table>'+
+  '<table><tbody>'+row("to","宛先")+row("from","提出元")+row("date","提出日")+row("jur","管轄")+row("site","店舗・物件名")+row("reqNo","作業依頼番号")+row("caseNo","顧客案件番号")+
+  row("name","作業名称")+row("place","作業場所")+row("workDate","作業日")+row("workTime","作業時間")+row("workers","作業者")+row("result","作業結果")+'</tbody></table>'+
   '<h3>作業内容</h3><div class="ed" id="rp-sum" contenteditable="true">'+e(o.reportText||o.detail||"")+'</div>'+
-  '<h3>作業写真</h3><div class="rg" id="rp-ph">'+reportPhotos(o.photos)+'</div>'+
+  '<h3>作業写真 <span class="noprint sub" style="font-weight:400">(「外す」で報告書に載せない写真を選べます)</span></h3><div class="rg" id="rp-ph">'+reportPhotos(o.photos)+'</div>'+
   '<h3>特記事項</h3><div class="ed" id="rp-note" contenteditable="true" style="min-height:44px">'+e(o.reportNote||"")+'</div></div>';
  document.body.appendChild(box);
 }
 function reportPhotos(list){
- return list.map(function(p,i){return '<figure><img src="'+e(photoSrc(p))+'" alt=""><figcaption><b>'+e(p.tag||"作業後")+'</b><span class="rpcap" data-i="'+i+'" contenteditable="true">'+e(p.caption||"")+'</span></figcaption></figure>'}).join("")||'<div style="grid-column:1/-1;color:#666">写真はありません</div>';
+ return list.map(function(p,i){return '<figure class="'+(p.noReport?"off":"")+'"><img src="'+e(photoSrc(p))+'" alt=""><figcaption><b>'+e(p.tag||"作業後")+'</b><span class="rpcap" data-i="'+i+'" contenteditable="true">'+e(p.caption||"")+'</span><button type="button" class="btn sm noprint" data-a="rpphoff" data-i="'+i+'">'+(p.noReport?"載せる":"外す")+'</button></figcaption></figure>'}).join("")||'<div class="sub">写真はありません</div>';
 }
 function readReport(){
  var d=S.dlg,list=readPhotos();
  Array.prototype.forEach.call(document.querySelectorAll("#rp-ph .rpcap"),function(x){var i=+x.dataset.i;if(list[i])list[i].caption=x.textContent.trim()});
- return {photos:list,reportText:($("#rp-sum")||{}).innerText||"",reportNote:($("#rp-note")||{}).innerText||""};
+ Array.prototype.forEach.call(document.querySelectorAll("#rp-ph figure"),function(f,i){if(list[i])list[i].noReport=f.classList.contains("off")||undefined});
+ var rep={};Array.prototype.forEach.call(document.querySelectorAll("#rpt .ed1"),function(td){rep[td.dataset.k]=td.innerText.replace(/\n+$/,"").trim()});
+ return {photos:list,report:rep,reportText:($("#rp-sum")||{}).innerText||"",reportNote:($("#rp-note")||{}).innerText||""};
 }
 async function saveReport(){
  var d=S.dlg;if(!d)return;var r=readReport();
- d.job=Object.assign({},d.job,r);
+ r.reportEditedAt=new Date().toISOString();d.job=Object.assign({},d.job,r);
  if(!d.draft){try{await Store.saveOrder(d.job);toast("報告書の内容を保存しました")}catch(x){toast("保存に失敗しました: "+(x.message||x.code))}}
  drawPhotos();
 }
@@ -2192,6 +2197,8 @@ document.addEventListener("click",async function(ev){
   case "report":openReport();break;
   case "rpclose":{var rb=$("#rpt");if(rb)rb.remove();break}
   case "rpsave":saveReport();break;
+  case "rpphoff":{var fg=t.closest("figure");if(fg){fg.classList.toggle("off");t.textContent=fg.classList.contains("off")?"載せる":"外す"}break}
+  case "rpreset":{if(!confirm("報告書の項目を、案件の情報から作り直した初期値に戻します。よろしいですか?"))break;var dj=S.dlg.job;dj.report=null;openReport();break}
   case "rpprint":{await saveReport();window.print();break}
   case "rpai":reportAi(t);break;
   case "srvreload":{var sb=$("#srv");if(sb)sb.innerHTML='<div class="sub">確認しています…</div>';loadSrv();break}
