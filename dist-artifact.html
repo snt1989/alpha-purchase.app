@@ -206,6 +206,7 @@ details summary{cursor:pointer;font-weight:700;font-size:13px}
 .ntl{overflow:auto;flex:1;-webkit-overflow-scrolling:touch}
 .nti{display:flex;gap:10px;align-items:flex-start;padding:11px 14px;border-bottom:1px solid var(--line);cursor:pointer}.nti:hover{background:var(--bg)}.nti.un{background:var(--accent-soft)}.nti.un .ntt{font-weight:700}
 .ntt2{display:flex;border-bottom:1px solid var(--line)}.ntt2 button{flex:1;background:none;border:0;border-bottom:3px solid transparent;padding:10px 6px;font:inherit;font-size:13px;font-weight:700;color:var(--muted);cursor:pointer;display:flex;gap:6px;align-items:center;justify-content:center}.ntt2 button.on{color:var(--ink);border-bottom-color:var(--accent)}.ntt2 i{font-style:normal;background:var(--accent);color:#fff;border-radius:9px;min-width:18px;height:18px;font-size:11px;display:inline-flex;align-items:center;justify-content:center;padding:0 5px}
+.nts2{display:flex;gap:6px;padding:8px 10px;border-bottom:1px solid var(--line);overflow-x:auto}.nts2 + .ntl .ngh{display:none}.nts2{padding:8px 8px;gap:5px}.nts2 button{flex:1 1 0;min-width:0;padding:6px 2px;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:6px 10px;font:inherit;font-size:12px;font-weight:700;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:1px;white-space:nowrap;color:var(--ink)}.nts2 button small{font-weight:400;color:var(--muted);font-size:11px}.nts2 button.on{background:var(--accent-soft);border-color:var(--accent)}
 .ngh{display:flex;align-items:center;gap:8px;padding:8px 14px;font-size:12px;background:var(--bg);border-bottom:1px solid var(--line);border-left:4px solid var(--line);position:sticky;top:0;z-index:1}.ngh b{font-size:13px}.ngc{margin-left:auto;color:var(--muted)}
 .ngh.g-todo{border-left-color:var(--accent)}.ngh.g-pend{border-left-color:#e08a00}.ngh.g-info{border-left-color:#1a4fd6}.ngh.g-new{border-left-color:#1a9b4b}.ngh.g-app{border-left-color:#8a5cd6}
 .nic{font-size:18px;line-height:1.3}.ntx{flex:1;min-width:0}.ntt{font-size:14px;overflow-wrap:anywhere}.ntb,.nts{font-size:12px;color:var(--muted,#667);overflow-wrap:anywhere}
@@ -1165,8 +1166,9 @@ var NAV=[["home","ホーム","home"],["list","案件一覧","list"],["import","�
 function mailTodo(){return (S.mails||[]).filter(function(m){return m.state==="skipped"||m.state==="error"})}
 function badge(tab){if(tab==="mail"){var k=mailTodo().length;return k?'<span class="n">'+k+'</span>':""}if(tab==="list"){var n=S.orders.filter(function(o){return o.status===0}).length;return n?'<span class="n">'+n+'</span>':""}return ""}
 /* ---- アプリの更新情報 ---- */
-var APP_VER="2026-11-19.8";
+var APP_VER="2026-11-19.9";
 var CHANGES=[
+ ["2026-11-19.9","お知らせの中も種類別のタブに","対応が必要・未処理・連絡事項・新着案件をタブで切り替えられます。"],
  ["2026-11-19.8","アプリの更新を別タブに","お知らせの画面を「お知らせ」と「アプリの更新」のタブに分けました。"],
  ["2026-11-19.7","お知らせを種類ごとに分けて表示","連絡事項・対応が必要・未処理・新着案件・アプリの更新に分け、件数と未読数を見出しに表示します。"],
  ["2026-11-19.6","PDF編集の文字入力を修正","枠や空白をタップしても文字が入力できない問題を直しました(スマホでもキーボードが開きます)。"],
@@ -1212,12 +1214,15 @@ function drawNt(){
  var h='<div class="nth"><b>お知らせ</b><span class="sp"></span><button class="btn sm" data-a="ntall">すべて既読</button><button class="btn sm" data-a="ntclose" aria-label="閉じる">✕</button></div><div class="ntl">';
  var tabApp=S.ntTab==="app",unN=function(f){return L.filter(function(n){return f(n)&&sn.indexOf(n.id)<0}).length},nA=unN(function(n){return n.g==="app"}),nN=unN(function(n){return n.g!=="app"});
  h=h.replace('</div><div class="ntl">','</div><div class="ntt2"><button data-a="nttab" data-t="news" class="'+(tabApp?"":"on")+'">お知らせ'+(nN?'<i>'+nN+'</i>':"")+'</button><button data-a="nttab" data-t="app" class="'+(tabApp?"on":"")+'">アプリの更新'+(nA?'<i>'+nA+'</i>':"")+'</button></div><div class="ntl">');
- var GR=tabApp?[["app","✨ 更新履歴"]]:[["info","📢 連絡事項"],["todo","⚠️ 対応が必要"],["pend","📥 未処理"],["new","🆕 新着案件"]];
+ var ALLG=[["todo","⚠️ 対応が必要"],["pend","📥 未処理"],["info","📢 連絡事項"],["new","🆕 新着案件"]],GR=tabApp?[["app","✨ 更新履歴"]]:ALLG;
+ if(!tabApp){var cnt=function(g){return L.filter(function(n){return n.g===g})},cur=S.ntSub&&ALLG.some(function(g){return g[0]===S.ntSub})?S.ntSub:(ALLG.filter(function(g){return cnt(g[0]).length})[0]||ALLG[0])[0];
+  GR=ALLG.filter(function(g){return g[0]===cur});
+  h=h.replace('<div class="ntl">','<div class="nts2">'+ALLG.map(function(g){var li=cnt(g[0]),u=li.filter(function(n){return sn.indexOf(n.id)<0}).length;return '<button data-a="ntsub" data-t="'+g[0]+'" class="'+(g[0]===cur?"on":"")+'">'+g[1]+'<small>'+li.length+(u?'・未読'+u:"")+'</small></button>'}).join("")+'</div><div class="ntl">')}
  var item=function(n){var un=sn.indexOf(n.id)<0;return '<div class="nti'+(un?" un":"")+'" '+(n.upd?'data-a="appupd"':n.open?'data-a="ntgo" data-o="'+e(n.open)+'"':n.tab?'data-a="ntgo" data-tab="'+n.tab+'"':'data-a="ntgo"')+' data-k="'+e(n.id)+'"><span class="nic">'+n.ic+'</span><div class="ntx"><div class="ntt">'+e(n.t)+'</div>'+(n.b?'<div class="ntb">'+e(n.b)+'</div>':"")+(n.at?'<div class="nts">'+e(String(n.at).slice(0,16).replace("T"," "))+'</div>':"")+'</div>'+(n.man?'<button class="btn sm out" data-a="ntdel" data-id="'+e(n.man)+'">削除</button>':"")+'</div>'};
  var any=false;
  GR.forEach(function(g){var li=L.filter(function(n){return n.g===g[0]});if(!li.length)return;any=true;var un=li.filter(function(n){return sn.indexOf(n.id)<0}).length;
   h+='<div class="ngh g-'+g[0]+'"><b>'+g[1]+'</b><span class="ngc">'+li.length+'件'+(un?' ・未読'+un:"")+'</span></div>'+li.map(item).join("")});
- if(!any)h+='<div class="sub" style="padding:24px;text-align:center">新しいお知らせはありません</div>';
+ if(!any)h+='<div class="sub" style="padding:24px;text-align:center">この種類のお知らせはありません</div>';
  h+='</div>'+(tabApp?'':'<div class="ntf"><input id="nt-t" placeholder="お知らせの題名(例: 今週の作業予定)"><textarea id="nt-b" rows="2" placeholder="内容(任意)"></textarea><button class="btn pri sm" data-a="ntadd">お知らせを投稿</button></div>');
  box.innerHTML=h;document.body.appendChild(box);
 }
@@ -2472,11 +2477,12 @@ document.addEventListener("click",async function(ev){
   case "tab":go(t.dataset.t);break;
   case "appupd":{try{var rg=await navigator.serviceWorker.getRegistrations();rg.forEach(function(g){g.update()})}catch(x){}location.reload();break}
   case "bell":S.ntOpen=!S.ntOpen;drawNt();break;
+  case "ntsub":S.ntSub=t.dataset.t;drawNt();break;
   case "nttab":S.ntTab=t.dataset.t;drawNt();break;
   case "ntclose":S.ntOpen=false;drawNt();break;
   case "ntall":ntMark(notices().map(function(n){return n.id}));renderBell();drawNt();break;
   case "ntgo":{ntMark([t.dataset.k]);S.ntOpen=false;drawNt();renderBell();if(t.dataset.o){var o3=S.orders.filter(function(x){return x.id===t.dataset.o})[0];if(o3)openJob(o3)}else if(t.dataset.tab)go(t.dataset.tab);break}
-  case "ntadd":{var nt=$("#nt-t").value.trim(),nb=$("#nt-b").value.trim();if(!nt)break;S.settings.notices=[{id:"nt"+Date.now(),title:nt,body:nb,at:new Date().toISOString()}].concat(S.settings.notices||[]).slice(0,30);await saveSettings();drawNt();renderBell();toast("お知らせを投稿しました");break}
+  case "ntadd":{var nt=$("#nt-t").value.trim(),nb=$("#nt-b").value.trim();if(!nt)break;S.settings.notices=[{id:"nt"+Date.now(),title:nt,body:nb,at:new Date().toISOString()}].concat(S.settings.notices||[]).slice(0,30);await saveSettings();S.ntSub="info";drawNt();renderBell();toast("お知らせを投稿しました");break}
   case "ntdel":S.settings.notices=(S.settings.notices||[]).filter(function(x){return x.id!==t.dataset.id});await saveSettings();drawNt();renderBell();break;
   case "flt":{var f={},kv=t.dataset.f.split(":");f[kv[0]]=kv[0]==="q"?decodeURIComponent(kv.slice(1).join(":")):kv.slice(1).join(":");go(t.dataset.go||"list",f);break}
   case "open":{var o=S.orders.filter(function(x){return x.id===t.dataset.id})[0];if(o)openJob(o);break}

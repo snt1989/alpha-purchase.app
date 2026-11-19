@@ -21,10 +21,12 @@ const { chromium } = require("playwright");
     await p.click("#bell"); await p.click('[data-a="nttab"][data-t="app"]'); if (!(await p.locator("#nt .nti", { hasText: "新しいバージョン" }).count())) throw new Error("no update notice");
     await p.unroute(/localhost:3123\/$/);
     await p.click('[data-a="nttab"][data-t="news"]');
-    for (const g of ["連絡事項","対応が必要","新着案件"]) { if (g === "連絡事項") continue; if (!(await p.locator("#nt .ngh", { hasText: g }).count())) throw new Error("no group " + g); }
+    for (const g of ["対応が必要", "未処理", "連絡事項", "新着案件"]) { await p.click('#nt .nts2 button:has-text("' + g + '")'); await p.waitForTimeout(50); }
+    await p.click('#nt .nts2 button:has-text("新着案件")'); if (!(await p.locator("#nt .nti").allInnerTexts()).join().includes("新しい案件")) throw new Error("new tab");
+    await p.click('#nt .nts2 button:has-text("対応が必要")'); if ((await p.locator("#nt .nti").allInnerTexts()).join().includes("新しい案件")) throw new Error("not split");
     await p.fill("#nt-t", "明日は棚卸です"); await p.click('[data-a="ntadd"]'); await p.waitForSelector('#nt:has-text("明日は棚卸です")');
     await p.click('[data-a="ntall"]'); if ((await p.innerText("#bellN")).trim() !== "") throw new Error("badge not cleared");
-    await p.locator('#nt .nti[data-o]').first().click(); await p.waitForSelector(".dlg"); if (await p.locator("#nt").count()) throw new Error("panel stays");
+    await p.click('#nt .nts2 button:has-text("対応が必要")'); await p.locator('#nt .nti[data-o]').first().click(); await p.waitForSelector(".dlg"); if (await p.locator("#nt").count()) throw new Error("panel stays");
     await p.close();
   }
   console.log("notice e2e OK"); await b.close();
