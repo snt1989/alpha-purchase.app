@@ -216,6 +216,8 @@ details summary{cursor:pointer;font-weight:700;font-size:13px}
 .nth{display:flex;gap:6px;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line)}.nth .sp{flex:1}
 .ntl{overflow:auto;flex:1;-webkit-overflow-scrolling:touch}
 .nti{display:flex;gap:10px;align-items:flex-start;padding:11px 14px;border-bottom:1px solid var(--line);cursor:pointer}.nti:hover{background:var(--bg)}.nti.un{background:var(--accent-soft)}.nti.un .ntt{font-weight:700}
+.ngh{display:flex;align-items:center;gap:8px;padding:8px 14px;font-size:12px;background:var(--bg);border-bottom:1px solid var(--line);border-left:4px solid var(--line);position:sticky;top:0;z-index:1}.ngh b{font-size:13px}.ngc{margin-left:auto;color:var(--muted)}
+.ngh.g-todo{border-left-color:var(--accent)}.ngh.g-pend{border-left-color:#e08a00}.ngh.g-info{border-left-color:#1a4fd6}.ngh.g-new{border-left-color:#1a9b4b}.ngh.g-app{border-left-color:#8a5cd6}
 .nic{font-size:18px;line-height:1.3}.ntx{flex:1;min-width:0}.ntt{font-size:14px;overflow-wrap:anywhere}.ntb,.nts{font-size:12px;color:var(--muted,#667);overflow-wrap:anywhere}
 .ntf{padding:10px 14px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:6px;background:var(--bg)}.ntf input,.ntf textarea{width:100%;font:inherit}
 @media(max-width:720px){.nt{top:52px;right:8px;left:8px;width:auto;max-height:calc(100vh - 70px)}}
@@ -496,8 +498,9 @@ var NAV=[["home","ホーム","home"],["list","案件一覧","list"],["import","�
 function mailTodo(){return (S.mails||[]).filter(function(m){return m.state==="skipped"||m.state==="error"})}
 function badge(tab){if(tab==="mail"){var k=mailTodo().length;return k?'<span class="n">'+k+'</span>':""}if(tab==="list"){var n=S.orders.filter(function(o){return o.status===0}).length;return n?'<span class="n">'+n+'</span>':""}return ""}
 /* ---- アプリの更新情報 ---- */
-var APP_VER="2026-11-19.6";
+var APP_VER="2026-11-19.7";
 var CHANGES=[
+ ["2026-11-19.7","お知らせを種類ごとに分けて表示","連絡事項・対応が必要・未処理・新着案件・アプリの更新に分け、件数と未読数を見出しに表示します。"],
  ["2026-11-19.6","PDF編集の文字入力を修正","枠や空白をタップしても文字が入力できない問題を直しました(スマホでもキーボードが開きます)。"],
  ["2026-11-19.5","報告書PDFのチェック・入力がかんたんに","PDF編集で「□」をタップするだけで✓が入り、枠をタップするとその枠に文字が収まります。作業日・時間・作業者名・人数は「自動入力」で一括で入ります。"],
  ["2026-11-19.4","お知らせ機能を追加","右上のベルから、期限・要確認・未処理メールなどをまとめて確認できます。アプリが更新されたときもここでお知らせします。"],
@@ -515,20 +518,20 @@ function ntSeen(){try{return JSON.parse(localStorage.getItem("ap:ntseen")||"[]")
 function ntMark(ids){try{var s=ntSeen();ids.forEach(function(k){if(s.indexOf(k)<0)s.push(k)});localStorage.setItem("ap:ntseen",JSON.stringify(s.slice(-400)))}catch(x){}}
 function notices(){
  var L=[],td=today(),now=Date.now();
- if(S.newVer)L.push({id:"upd:"+S.newVer,lv:4,ic:"⬆️",t:"アプリの新しいバージョンがあります",b:"タップすると最新の状態に更新します",upd:1});
+ if(S.newVer)L.push({g:"app",id:"upd:"+S.newVer,lv:4,ic:"⬆️",t:"アプリの新しいバージョンがあります",b:"タップすると最新の状態に更新します",upd:1});
  try{if(localStorage.getItem("ap:ntseen")===null)ntMark(CHANGES.map(function(c){return "ver:"+c[0]}))}catch(x){}
- CHANGES.forEach(function(c,k){if(k<4)L.push({id:"ver:"+c[0],lv:k?0:1,ic:"✨",t:"アプリ更新: "+c[1],b:c[2]+"(Ver."+c[0]+")",ver:1})});
- (S.settings.notices||[]).forEach(function(n){L.push({id:"n:"+n.id,lv:2,ic:"📢",t:n.title||"お知らせ",b:n.body||"",at:n.at,man:n.id})});
+ CHANGES.forEach(function(c,k){if(k<4)L.push({g:"app",id:"ver:"+c[0],lv:k?0:1,ic:"✨",t:"アプリ更新: "+c[1],b:c[2]+"(Ver."+c[0]+")",ver:1})});
+ (S.settings.notices||[]).forEach(function(n){L.push({g:"info",id:"n:"+n.id,lv:2,ic:"📢",t:n.title||"お知らせ",b:n.body||"",at:n.at,man:n.id})});
  S.orders.forEach(function(o){
   if(o.status===8)return;var d=dueOf(o),n=daysTo(d);
-  if(n!=null&&n<0)L.push({id:"late:"+o.id+d,lv:3,ic:"⏰",t:title(o)+" の"+dueKind(o)+"が過ぎています",b:o.no+" ／ "+md(d)+"(超過"+(-n)+"日)",open:o.id});
-  else if(n!=null&&n<=3)L.push({id:"soon:"+o.id+d,lv:2,ic:"🗓",t:title(o)+" の"+dueKind(o)+(n===0?"は本日です":"まであと"+n+"日"),b:o.no+" ／ "+md(d),open:o.id});
-  if(o.needsReview&&o.status<=3)L.push({id:"rv:"+o.id+reasons(o).join("|").length,lv:3,ic:"⚠️",t:title(o)+" が要確認です",b:(reasons(o)[0]||""),open:o.id});
-  if(o.urgent&&o.status<=3)L.push({id:"ug:"+o.id,lv:3,ic:"🔥",t:title(o)+" は至急案件です",b:o.no,open:o.id});
-  var ca=Date.parse(o.createdAt||"");if(ca&&now-ca<48*36e5)L.push({id:"new:"+o.id,lv:1,ic:"🆕",t:"新しい案件: "+title(o),b:o.no+(o.reqNo?" ／ "+o.reqNo:""),open:o.id,at:o.createdAt});
+  if(n!=null&&n<0)L.push({g:"todo",id:"late:"+o.id+d,lv:3,ic:"⏰",t:title(o)+" の"+dueKind(o)+"が過ぎています",b:o.no+" ／ "+md(d)+"(超過"+(-n)+"日)",open:o.id});
+  else if(n!=null&&n<=3)L.push({g:"todo",id:"soon:"+o.id+d,lv:2,ic:"🗓",t:title(o)+" の"+dueKind(o)+(n===0?"は本日です":"まであと"+n+"日"),b:o.no+" ／ "+md(d),open:o.id});
+  if(o.needsReview&&o.status<=3)L.push({g:"todo",id:"rv:"+o.id+reasons(o).join("|").length,lv:3,ic:"⚠️",t:title(o)+" が要確認です",b:(reasons(o)[0]||""),open:o.id});
+  if(o.urgent&&o.status<=3)L.push({g:"todo",id:"ug:"+o.id,lv:3,ic:"🔥",t:title(o)+" は至急案件です",b:o.no,open:o.id});
+  var ca=Date.parse(o.createdAt||"");if(ca&&now-ca<48*36e5)L.push({g:"new",id:"new:"+o.id,lv:1,ic:"🆕",t:"新しい案件: "+title(o),b:o.no+(o.reqNo?" ／ "+o.reqNo:""),open:o.id,at:o.createdAt});
  });
- var mt=mailTodo().length;if(mt)L.push({id:"mail:"+mt,lv:3,ic:"✉️",t:"未処理のメールが "+mt+" 件あります",b:"内容を確認して案件に登録してください",tab:"mail"});
- var ld=(S.settings.looseDocs||[]).length+(S.orph||[]).length;if(ld)L.push({id:"ld:"+ld,lv:2,ic:"📎",t:"紐づいていない書類が "+ld+" 件あります",b:"「書類の確認」で案件に紐づけてください",tab:"docs"});
+ var mt=mailTodo().length;if(mt)L.push({g:"pend",id:"mail:"+mt,lv:3,ic:"✉️",t:"未処理のメールが "+mt+" 件あります",b:"内容を確認して案件に登録してください",tab:"mail"});
+ var ld=(S.settings.looseDocs||[]).length+(S.orph||[]).length;if(ld)L.push({g:"pend",id:"ld:"+ld,lv:2,ic:"📎",t:"紐づいていない書類が "+ld+" 件あります",b:"「書類の確認」で案件に紐づけてください",tab:"docs"});
  return L.sort(function(a,b){return b.lv-a.lv||String(b.at||"").localeCompare(String(a.at||""))});
 }
 function renderBell(){
@@ -539,7 +542,12 @@ function drawNt(){
  var old=$("#nt");if(old)old.remove();if(!S.ntOpen)return;
  var L=notices(),sn=ntSeen(),box=document.createElement("div");box.id="nt";box.className="nt";
  var h='<div class="nth"><b>お知らせ</b><span class="sp"></span><button class="btn sm" data-a="ntall">すべて既読</button><button class="btn sm" data-a="ntclose" aria-label="閉じる">✕</button></div><div class="ntl">';
- h+=L.length?L.map(function(n){var un=sn.indexOf(n.id)<0;return '<div class="nti'+(un?" un":"")+'" '+(n.upd?'data-a="appupd"':n.open?'data-a="ntgo" data-o="'+e(n.open)+'"':n.tab?'data-a="ntgo" data-tab="'+n.tab+'"':'data-a="ntgo"')+' data-k="'+e(n.id)+'"><span class="nic">'+n.ic+'</span><div class="ntx"><div class="ntt">'+e(n.t)+'</div>'+(n.b?'<div class="ntb">'+e(n.b)+'</div>':"")+(n.at?'<div class="nts">'+e(String(n.at).slice(0,16).replace("T"," "))+'</div>':"")+'</div>'+(n.man?'<button class="btn sm out" data-a="ntdel" data-id="'+e(n.man)+'">削除</button>':"")+'</div>'}).join(""):'<div class="sub" style="padding:24px;text-align:center">新しいお知らせはありません</div>';
+ var GR=[["info","📢 連絡事項"],["todo","⚠️ 対応が必要"],["pend","📥 未処理"],["new","🆕 新着案件"],["app","✨ アプリの更新"]];
+ var item=function(n){var un=sn.indexOf(n.id)<0;return '<div class="nti'+(un?" un":"")+'" '+(n.upd?'data-a="appupd"':n.open?'data-a="ntgo" data-o="'+e(n.open)+'"':n.tab?'data-a="ntgo" data-tab="'+n.tab+'"':'data-a="ntgo"')+' data-k="'+e(n.id)+'"><span class="nic">'+n.ic+'</span><div class="ntx"><div class="ntt">'+e(n.t)+'</div>'+(n.b?'<div class="ntb">'+e(n.b)+'</div>':"")+(n.at?'<div class="nts">'+e(String(n.at).slice(0,16).replace("T"," "))+'</div>':"")+'</div>'+(n.man?'<button class="btn sm out" data-a="ntdel" data-id="'+e(n.man)+'">削除</button>':"")+'</div>'};
+ var any=false;
+ GR.forEach(function(g){var li=L.filter(function(n){return n.g===g[0]});if(!li.length)return;any=true;var un=li.filter(function(n){return sn.indexOf(n.id)<0}).length;
+  h+='<div class="ngh g-'+g[0]+'"><b>'+g[1]+'</b><span class="ngc">'+li.length+'件'+(un?' ・未読'+un:"")+'</span></div>'+li.map(item).join("")});
+ if(!any)h+='<div class="sub" style="padding:24px;text-align:center">新しいお知らせはありません</div>';
  h+='</div><div class="ntf"><input id="nt-t" placeholder="お知らせの題名(例: 今週の作業予定)"><textarea id="nt-b" rows="2" placeholder="内容(任意)"></textarea><button class="btn pri sm" data-a="ntadd">お知らせを投稿</button></div>';
  box.innerHTML=h;document.body.appendChild(box);
 }
