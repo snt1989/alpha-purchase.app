@@ -211,6 +211,15 @@ details summary{cursor:pointer;font-weight:700;font-size:13px}
  .btn{min-height:40px}.btn.sm{min-height:34px}
  .alerts{grid-template-columns:repeat(2,minmax(0,1fr))}
  .todo{grid-template-columns:78px minmax(0,1fr)}.todo .go{display:none}
+ table.rt td.rt1{order:-1;display:block;text-align:left;padding:2px 0 6px}table.rt td.rt1::before{display:none}table.rt td.rt1 .site{font-size:17px;font-weight:700;display:block}
+ table.rt td.rtw{display:block;text-align:left;padding:2px 0 6px;color:var(--ink)}table.rt td.rtw::before{display:block;margin-bottom:1px}
+ table.rt td.emp{display:none}table.rt td.rts{order:99;margin-top:4px;padding-top:8px;border-top:1px dashed var(--line);align-items:center}
+ table.rt td.rt0 .tag{margin-left:2px}
+ .todo{grid-template-columns:minmax(0,1fr)!important;gap:4px}.todo .dt{order:2;font-weight:700}.todo .tt{order:1}
+ .grid.alerts .alert b{font-size:26px}
+ .pgact .btn{flex:1 1 auto;justify-content:center}
+ .card2{padding:14px}
+
  .panel.scroll:has(>table.rt){overflow:visible;border:0;background:none}
  table.rt{min-width:0;display:block}table.rt thead{display:none}table.rt tbody{display:block}
  table.rt tr{display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px}
@@ -219,7 +228,7 @@ details summary{cursor:pointer;font-weight:700;font-size:13px}
  table.rt td.rt0{order:-1;display:block;text-align:left;font-size:15px;padding:0 0 6px;margin-bottom:4px;border-bottom:1px solid var(--line)}
  table.rt td.rt0::before{display:none}
  .mask{padding:0}.dlg{border-radius:0;min-height:100%;padding:14px}
- .dlg>.acts:first-child{top:-14px}.dlg>.acts.stk{bottom:-14px;gap:6px;padding:8px 0 calc(8px + env(safe-area-inset-bottom,0px))}.dlg>.acts.stk .btn{padding-left:12px;padding-right:12px}.dlg>.acts.stk .row2{gap:6px;flex-wrap:nowrap}
+ .dlg>.acts:first-child{top:-14px}.dlg>.acts.stk{bottom:-14px;gap:6px;padding:10px 0 calc(16px + env(safe-area-inset-bottom,0px))}.dlg>.acts.stk .btn{padding-left:12px;padding-right:12px}.dlg>.acts.stk .row2{gap:6px;flex-wrap:nowrap}
  .items{min-width:560px}
  #ttl{display:none}.topbar{gap:8px}.topbar .sp{flex:1}
  table.srv{min-width:0!important}table.srv,table.srv tbody,table.srv tr,table.srv td,table.srv th{display:block;width:100%!important;box-sizing:border-box}table.srv td{word-break:break-all;padding-top:0}table.srv td *{max-width:100%;white-space:normal!important;box-sizing:border-box}table.srv tr{padding:6px 0;border-bottom:1px solid var(--line)}
@@ -1279,9 +1288,9 @@ function renderList(){
  box.innerHTML='<table class="rt"><thead><tr><th>案件No</th><th>依頼日</th><th>店舗・取引先</th><th>作業・品目</th><th>期限</th><th class="num">金額(税抜)</th><th>担当</th><th>状態</th></tr></thead><tbody>'+
   L.map(function(o){return '<tr class="row" data-a="open" data-id="'+e(o.id)+'"><td class="rt0 nw" data-l="案件No"><b>'+e(o.no)+'</b>'+kindTag(o)+flags(o)+(o.reqNo?'<div class="sub">依頼 '+e(o.reqNo)+'</div>':'')+rvLine(o)+'</td>'+
    '<td data-l="依頼日" class="nw">'+md(o.receivedAt||o.createdAt)+'</td>'+
-   '<td data-l="店舗"><span class="site">'+e(title(o))+'</span>'+(siteParts(o).jur?'<div class="sub">管轄: '+e(siteParts(o).jur)+'</div>':"")+(o.site&&o.customer&&AP.normStore(o.customer)?'<div class="sub">'+e(AP.normStore(o.customer))+'</div>':o.contact?'<div class="sub">'+e(o.contact)+'</div>':"")+'</td>'+
-   '<td data-l="作業">'+e(o.subject||itemsText(o))+'</td><td data-l="期限" class="nw">'+dueText(o)+'</td>'+
-   '<td data-l="金額" class="num">'+yen(o.amount)+'</td><td data-l="担当" class="nw">'+e(o.staff||"—")+'</td><td data-l="状態">'+pill(o)+'</td></tr>'}).join("")+'</tbody></table>';
+   '<td data-l="店舗" class="rt1"><span class="site">'+e(title(o))+'</span>'+(siteParts(o).jur?'<div class="sub">管轄: '+e(siteParts(o).jur)+'</div>':"")+(o.site&&o.customer&&AP.normStore(o.customer)?'<div class="sub">'+e(AP.normStore(o.customer))+'</div>':o.contact?'<div class="sub">'+e(o.contact)+'</div>':"")+'</td>'+
+   '<td data-l="作業" class="rtw">'+e(o.subject||itemsText(o))+'</td><td data-l="期限" class="nw">'+dueText(o)+'</td>'+
+   '<td data-l="金額" class="num'+(o.amount?"":" emp")+'">'+yen(o.amount)+'</td><td data-l="担当" class="nw'+(o.staff?"":" emp")+'">'+e(o.staff||"—")+'</td><td data-l="状態" class="rts">'+pill(o)+'</td></tr>'}).join("")+'</tbody></table>';
 }
 
 var SAMPLE_BTNS=function(){return AP.SAMPLES.map(function(s,i){return '<button class="btn sm" data-a="sample" data-i="'+i+'">'+e(s.title)+'</button>'}).join("")};
@@ -1612,7 +1621,7 @@ function pgCust(){
  var h='<div class="pghead"><h2 class="pt">店舗・取引先</h2></div><div class="sub">案件から店舗(店舗名がないものは取引先)ごとに集計しています(キャンセルは除く)。</div>';
  if(!L.length)return h+'<div class="panel empty">まだ受注がありません</div>';
  return h+'<div class="panel scroll"><table class="rt"><thead><tr><th>店舗・取引先</th><th>連絡先</th><th class="num">案件数</th><th class="num">進行中</th><th class="num">累計(税抜)</th><th>最終受信</th></tr></thead><tbody>'+
-  L.map(function(c){return '<tr class="row" data-a="flt" data-f="q:'+e(encodeURIComponent(c.name))+'" data-go="list"><td class="rt0" data-l="取引先"><b>'+e(c.name)+'</b></td><td data-l="連絡先"><div>'+e(c.contact)+'</div><div class="sub">'+e([c.tel,c.email].filter(Boolean).join(" / "))+'</div></td><td class="num" data-l="受注件数">'+c.n+'</td><td class="num" data-l="進行中">'+c.open+'</td><td class="num" data-l="累計">'+yen(c.amt)+'</td><td data-l="最終受信">'+ymdj(c.last)+'</td></tr>'}).join("")+'</tbody></table></div>';
+  L.map(function(c){return '<tr class="row" data-a="flt" data-f="q:'+e(encodeURIComponent(c.name))+'" data-go="list"><td class="rt0" data-l="取引先"><b>'+e(c.name)+'</b></td><td data-l="連絡先"'+(c.contact||c.tel||c.email?"":' class="emp"')+'><div>'+e(c.contact)+'</div><div class="sub">'+e([c.tel,c.email].filter(Boolean).join(" / "))+'</div></td><td class="num" data-l="受注件数">'+c.n+'</td><td class="num" data-l="進行中">'+c.open+'</td><td class="num" data-l="累計">'+yen(c.amt)+'</td><td data-l="最終受信">'+ymdj(c.last)+'</td></tr>'}).join("")+'</tbody></table></div>';
 }
 
 /* ---- アルファパーチェス以外の差出人から自動登録された案件(掃除用) ---- */
