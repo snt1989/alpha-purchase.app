@@ -27,7 +27,7 @@ module.exports = async (req, res) => {
       // どの案件にも付いていない保存済みPDFだけを削除する(使用中のものは消さない)
       const ids = (Array.isArray(b.ids) ? b.ids : [b.id]).map(String).filter((x) => /^[A-Za-z0-9_\-@.]{1,120}$/.test(x)).slice(0, 100);
       const r = await pipeline([["HGETALL", key("orders")], ["HGET", key("settings"), "main"]]);
-      const used = {}, mark = (f) => { if (f && f.url) used[f.url] = 1; };
+      const used = {}, mark = (f) => { if (f && f.url) used[f.url] = 1; if (f && f.orig && f.orig.url) used[f.orig.url] = 1; };
       const o = r[0] || []; for (let i = 0; i + 1 < o.length; i += 2) { try { (JSON.parse(o[i + 1]).files || []).forEach(mark); } catch (e) {} }
       try { (JSON.parse(r[1] || "{}").looseDocs || []).forEach(mark); } catch (e) {}
       const del = ids.filter((id) => !used["/api/file?id=" + encodeURIComponent(id)]), cmds = [];
@@ -38,7 +38,7 @@ module.exports = async (req, res) => {
     if (b.op === "orphans") {
       // どの案件にも付いていない保存済みPDF(紐づけ解除したものなど)
       const r = await pipeline([["HGETALL", "ap:fmeta"], ["HGETALL", key("orders")], ["HGET", key("settings"), "main"]]);
-      const used = {}, mark = (f) => { if (f && f.url) used[f.url] = 1; };
+      const used = {}, mark = (f) => { if (f && f.url) used[f.url] = 1; if (f && f.orig && f.orig.url) used[f.orig.url] = 1; };
       const o = r[1] || []; for (let i = 0; i + 1 < o.length; i += 2) { try { (JSON.parse(o[i + 1]).files || []).forEach(mark); } catch (e) {} }
       try { (JSON.parse(r[2] || "{}").looseDocs || []).forEach(mark); } catch (e) {}
       const m = r[0] || [], list = [];

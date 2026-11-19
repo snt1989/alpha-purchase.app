@@ -186,6 +186,19 @@ details summary{cursor:pointer;font-weight:700;font-size:13px}
 .rpt th,.rpt td{border:1px solid #888;padding:4px 8px;text-align:left;vertical-align:top;font-size:13px;color:#111;word-break:break-all}
 .rpt th{background:#f1f1f1;width:24%;font-weight:600;white-space:normal}
 .rpt .ed{border:1px solid #888;min-height:70px;padding:6px 8px;white-space:pre-wrap;outline:none}
+.pe{position:fixed;inset:0;z-index:85;background:#000a;overflow:auto;padding:10px 10px 40px;-webkit-overflow-scrolling:touch}
+.pebar{position:sticky;top:0;z-index:5;display:flex;gap:6px;flex-wrap:wrap;align-items:center;background:var(--surface);border-radius:10px;padding:8px;max-width:900px;margin:0 auto 6px;box-shadow:0 2px 10px #0004}
+.pebar select{min-height:34px;width:auto}.pebar .sp{flex:1}
+.pehelp{max-width:900px;margin:0 auto 8px;color:#fff;font-size:13px}
+.pepages{display:flex;flex-direction:column;gap:12px;align-items:center}
+.pep{position:relative;background:#fff;box-shadow:0 2px 12px #0006;touch-action:pan-y}.pep img{position:absolute;inset:0;width:100%;height:100%;user-select:none;pointer-events:none}
+.pel{position:absolute;inset:0;cursor:crosshair;touch-action:none}.pe.tsel .pel{cursor:default}
+.pem{position:absolute;background:#fff;outline:1.5px dashed var(--accent)}
+.pet{position:absolute;min-width:1.2em;line-height:1.25;white-space:pre;outline:1.5px dashed #888;background:#ffffff00;padding:0 2px;cursor:text}.pet:focus{background:#fffbe6a0;outline-color:var(--accent)}
+.peh,.pex{position:absolute;top:-18px;width:18px;height:18px;line-height:17px;text-align:center;font-size:12px;border-radius:4px;background:var(--accent);color:#fff;cursor:pointer;display:none;user-select:none}
+.peh{left:0;cursor:move;touch-action:none}.pex{left:20px}
+.pe.tsel .peh,.pe.tsel .pex,.pet:focus-within .peh,.pet:focus-within .pex{display:block}
+.pe.tsel .pem{cursor:move}
 .rpt .ed:focus{background:#fffbe6}
 .rpt .ed1{outline:none;min-height:1.6em}.rpt .ed1:focus,.rpt .ed1:hover{background:#fffbe6}.rpt figure.off{opacity:.35}.rpt figure.off img{filter:grayscale(1)}.rpt figcaption .btn{margin-top:4px;padding:2px 8px;min-height:26px;font-size:12px}
 .rpt h3{font-size:14px;margin:12px 0 4px;border-left:4px solid #111;padding-left:6px}
@@ -1763,11 +1776,129 @@ function docsSection(o){
  var files=o.files||[],h='<div><b style="font-size:13px">書類</b> <span class="sub">(画像をクリックすると大きく表示)</span></div><div class="docs" id="docs">';
  DOCK.forEach(function(d){
   var idx=-1;files.forEach(function(f,i){if(idx<0&&docKind(f)===d[0]&&fileSrc(f))idx=i});
-  var f=idx>=0?files[idx]:null,up=f?'<button class="btn sm" data-a="undoc" data-id="'+e(o.id)+'" data-k="'+d[0]+'">紐づけ解除</button>':"";if(d[0]==="report")up='<button class="btn sm pri" data-a="report">'+(o.report||o.reportText?"報告書を編集":"報告書を作成")+'</button> '+up;
+  var f=idx>=0?files[idx]:null,up=f?'<button class="btn sm" data-a="undoc" data-id="'+e(o.id)+'" data-k="'+d[0]+'">紐づけ解除</button>':"";if(f&&/\.pdf(\W|$)/i.test((f.name||"")+" "+(f.label||"")))up='<button class="btn sm" data-a="pdfedit" data-i="'+idx+'">PDFを編集</button> '+(f.orig?'<button class="btn sm out" data-a="pdfrestore" data-i="'+idx+'">編集前に戻す</button> ':"")+up;
+  if(d[0]==="report")up='<button class="btn sm pri" data-a="report">'+(o.report||o.reportText?"報告書を編集":"報告書を作成")+'</button> '+up;
   h+='<div class="doc"><div class="dh"><b>'+d[1]+'</b>'+(f?'<span class="sub" title="'+e(f.name||"")+'">'+e(f.name||"")+'</span>':"")+'<span class="sp"></span>'+(f?'<button class="btn sm" data-a="pvopen" data-k="f" data-i="'+idx+'">拡大</button>':"")+up+'</div>'+
    (f?'<div class="dbody" data-i="'+idx+'"><div class="dempty">読み込み中…</div></div>':'<div class="dempty">まだありません'+(d[0]==="report"?"<br>(メールに付いてきたら自動で入ります)":d[0]==="order"&&o.pdfLink?"<br>メールのリンクから開いて保存し、「書類の確認」から追加できます":"")+'</div>')+'</div>';
  });
  return h+'</div>';
+}
+/* ---- 書類PDFを直接編集(文字を書き込む・白塗りで消す) ---- */
+var PE=null;
+async function pdfEdit(idx){
+ var d=S.dlg;if(!d)return;var f=(d.job.files||[])[idx];if(!f)return;var src=fileSrc(f);if(!src)return;
+ toast("PDFを読み込み中…");
+ try{
+  await libs();if(!window.PDFLib)await loadScript(LIB.pdflib);
+  var r=await fetch(src,{credentials:"same-origin"});if(!r.ok)throw new Error("読み込めません("+r.status+")");
+  var bytes=new Uint8Array(await r.arrayBuffer());
+  var doc=await window.pdfjsLib.getDocument({data:bytes.slice()}).promise,pages=[];
+  for(var p=1;p<=Math.min(doc.numPages,8);p++){
+   var pg=await doc.getPage(p),v1=pg.getViewport({scale:1}),sc=Math.min(1.8,Math.max(.6,(Math.min(window.innerWidth,900)-28)/v1.width)),vp=pg.getViewport({scale:sc}),c=document.createElement("canvas");
+   c.width=vp.width;c.height=vp.height;await pg.render({canvasContext:c.getContext("2d"),viewport:vp}).promise;
+   pages.push({url:c.toDataURL("image/jpeg",.85),w:v1.width,h:v1.height,sc:sc,rot:pg.rotate||0});
+  }
+  PE={idx:idx,bytes:bytes,pages:pages,more:doc.numPages>8,ann:[],tool:"text",pt:12,color:"#000000",name:f.name||"書類.pdf",seq:0};
+  drawPdfEdit();
+ }catch(x){toast("開けませんでした: "+(x.message||x))}
+}
+function drawPdfEdit(){
+ var old=$("#pe");if(old)old.remove();if(!PE)return;
+ var box=document.createElement("div");box.id="pe";box.className="pe";
+ var tb=function(t,l){return '<button class="btn'+(PE.tool===t?' pri':'')+'" data-a="petool" data-t="'+t+'">'+l+'</button>'};
+ box.innerHTML='<div class="pebar">'+tb("text","文字を書き込む")+tb("mask","白塗りで消す")+tb("sel","移動・削除")+
+  '<select id="pe-pt" title="文字の大きさ">'+[8,10,12,14,18,24].map(function(n){return '<option value="'+n+'"'+(PE.pt===n?" selected":"")+'>'+n+'pt</option>'}).join("")+'</select>'+
+  '<select id="pe-col" title="文字の色"><option value="#000000">黒</option><option value="#d6001d"'+(PE.color==="#d6001d"?" selected":"")+'>赤</option><option value="#1a4fd6"'+(PE.color==="#1a4fd6"?" selected":"")+'>青</option></select>'+
+  '<span class="sp"></span><button class="btn" data-a="peundo">1つ戻す</button><button class="btn pri" data-a="pesave">保存して差し替え</button><button class="btn" data-a="peclose">閉じる</button></div>'+
+  '<div class="pehelp">'+({text:"文字を入れたい場所をタップ/クリックして、文字を入力します。",mask:"消したい部分をなぞって四角で囲むと、白く塗りつぶします。",sel:"枠の左上の「≡」をドラッグして移動、「×」で削除します。"})[PE.tool]+(PE.more?" (先頭8ページまで編集できます)":"")+'</div>'+
+  '<div class="pepages">'+PE.pages.map(function(pg,k){return '<div class="pep" data-p="'+k+'" style="width:'+Math.round(pg.w*pg.sc)+'px;height:'+Math.round(pg.h*pg.sc)+'px"><img src="'+pg.url+'" alt="" draggable="false"><div class="pel" data-p="'+k+'"></div></div>'}).join("")+'</div>';
+ document.body.appendChild(box);
+ box.classList.toggle("tsel",PE.tool==="sel");
+ PE.pages.forEach(function(pg,k){peRender(k)});
+ var a=$("#pe-pt");a.onchange=function(){PE.pt=+a.value};var c=$("#pe-col");c.onchange=function(){PE.color=c.value};
+ Array.prototype.forEach.call(box.querySelectorAll(".pel"),function(el){peBind(el)});
+}
+function peRender(k){
+ var el=document.querySelector('#pe .pel[data-p="'+k+'"]');if(!el)return;var pg=PE.pages[k];el.innerHTML="";
+ PE.ann.filter(function(a){return a.p===k}).forEach(function(a){
+  var n=document.createElement("div");n.dataset.id=a.id;
+  if(a.t==="mask"){n.className="pem";n.style.cssText="left:"+a.x*pg.sc+"px;top:"+a.y*pg.sc+"px;width:"+a.w*pg.sc+"px;height:"+a.h*pg.sc+"px"}
+  else{n.className="pet";n.contentEditable="true";n.spellcheck=false;n.textContent=a.text;n.style.cssText="left:"+a.x*pg.sc+"px;top:"+a.y*pg.sc+"px;font-size:"+a.pt*pg.sc+"px;color:"+a.color;
+   n.oninput=function(){a.text=n.innerText.replace(/\n$/,"")};n.onblur=function(){if(!a.text.trim()){PE.ann=PE.ann.filter(function(x){return x!==a});peRender(k)}}}
+  var h=document.createElement("span");h.className="peh";h.textContent="≡";h.dataset.drag=a.id;n.appendChild(h);
+  var x=document.createElement("span");x.className="pex";x.textContent="×";x.dataset.del=a.id;n.appendChild(x);
+  el.appendChild(n);
+ });
+}
+function peBind(el){
+ var k=+el.dataset.p,pg=PE.pages[k],start=null,tmp=null,drag=null;
+ el.addEventListener("pointerdown",function(ev){
+  var t=ev.target;
+  if(t.dataset&&t.dataset.del){PE.ann=PE.ann.filter(function(a){return String(a.id)!==t.dataset.del});peRender(k);ev.preventDefault();return}
+  if(t.dataset&&t.dataset.drag){var a=PE.ann.filter(function(x){return String(x.id)===t.dataset.drag})[0];if(a){drag={a:a,ox:ev.clientX,oy:ev.clientY,x:a.x,y:a.y,n:t.parentNode};el.setPointerCapture(ev.pointerId);ev.preventDefault()}return}
+  if(t!==el)return;
+  var rc=el.getBoundingClientRect(),x=(ev.clientX-rc.left)/pg.sc,y=(ev.clientY-rc.top)/pg.sc;
+  if(PE.tool==="text"){var a2={id:++PE.seq,p:k,t:"text",x:x,y:y,text:"",pt:PE.pt,color:PE.color};PE.ann.push(a2);peRender(k);var n2=el.querySelector('[data-id="'+a2.id+'"]');if(n2)n2.focus();ev.preventDefault()}
+  else if(PE.tool==="mask"){start={x:x,y:y,px:ev.clientX-rc.left,py:ev.clientY-rc.top};tmp=document.createElement("div");tmp.className="pem";tmp.style.cssText="left:"+start.px+"px;top:"+start.py+"px;width:0;height:0";el.appendChild(tmp);el.setPointerCapture(ev.pointerId);ev.preventDefault()}
+ });
+ el.addEventListener("pointermove",function(ev){
+  var rc=el.getBoundingClientRect();
+  if(drag){var dx=(ev.clientX-drag.ox)/pg.sc,dy=(ev.clientY-drag.oy)/pg.sc;drag.a.x=drag.x+dx;drag.a.y=drag.y+dy;drag.n.style.left=drag.a.x*pg.sc+"px";drag.n.style.top=drag.a.y*pg.sc+"px";return}
+  if(start&&tmp){var px=ev.clientX-rc.left,py=ev.clientY-rc.top;tmp.style.left=Math.min(px,start.px)+"px";tmp.style.top=Math.min(py,start.py)+"px";tmp.style.width=Math.abs(px-start.px)+"px";tmp.style.height=Math.abs(py-start.py)+"px"}
+ });
+ var end=function(ev){
+  if(drag){drag=null;return}
+  if(start&&tmp){var rc=el.getBoundingClientRect(),px=ev.clientX-rc.left,py=ev.clientY-rc.top,w=Math.abs(px-start.px)/pg.sc,h=Math.abs(py-start.py)/pg.sc;
+   if(w>3&&h>3)PE.ann.push({id:++PE.seq,p:k,t:"mask",x:Math.min(px,start.px)/pg.sc,y:Math.min(py,start.py)/pg.sc,w:w,h:h});
+   start=null;tmp=null;peRender(k)}
+ };
+ el.addEventListener("pointerup",end);el.addEventListener("pointercancel",end);
+}
+function peTextImg(a){
+ var K=4,lines=String(a.text||"").split("\n"),c=document.createElement("canvas"),g=c.getContext("2d"),font='"Noto Sans JP","Hiragino Sans","Yu Gothic","Meiryo",sans-serif';
+ g.font=(a.pt*K)+"px "+font;var mw=0;lines.forEach(function(l){mw=Math.max(mw,g.measureText(l).width)});
+ var lh=a.pt*1.25*K;c.width=Math.ceil(mw)+4;c.height=Math.ceil(lh*lines.length)+4;g=c.getContext("2d");g.font=(a.pt*K)+"px "+font;g.fillStyle=a.color;g.textBaseline="top";
+ lines.forEach(function(l,i){g.fillText(l,2,2+i*lh+(lh-a.pt*K)/2)});
+ return new Promise(function(res){c.toBlob(function(b){b.arrayBuffer().then(function(buf){res({bytes:new Uint8Array(buf),w:c.width/K,h:c.height/K})})},"image/png")});
+}
+async function pdfEditSave(btn){
+ if(!PE)return;var d=S.dlg;if(!d)return;
+ var anns=PE.ann.filter(function(a){return a.t==="mask"||String(a.text||"").trim()});
+ if(!anns.length){toast("書き込みも白塗りもありません");return}
+ btn.disabled=true;var old=btn.textContent;btn.textContent="保存中…";
+ try{
+  var L=window.PDFLib,pdf=await L.PDFDocument.load(PE.bytes,{ignoreEncryption:true}),pgs=pdf.getPages();
+  for(var i=0;i<anns.length;i++){
+   var a=anns[i],page=pgs[a.p];if(!page)continue;
+   if(page.getRotation().angle%360!==0)throw new Error("回転しているページは編集できません");
+   var ph=page.getHeight();
+   if(a.t==="mask")page.drawRectangle({x:a.x,y:ph-a.y-a.h,width:a.w,height:a.h,color:L.rgb(1,1,1),borderWidth:0});
+   else{var im=await peTextImg(a),img=await pdf.embedPng(im.bytes);page.drawImage(img,{x:a.x,y:ph-a.y-im.h,width:im.w,height:im.h})}
+  }
+  var out=await pdf.save(),blob=new Blob([out],{type:"application/pdf"}),f=d.job.files[PE.idx],nm=String(f.name||"書類.pdf").replace(/(\(編集済\))?\.pdf$/i,"")+"(編集済).pdf",nf;
+  if(Store.mode==="server"){
+   var b64=await new Promise(function(res,rej){var fr=new FileReader();fr.onload=function(){res(String(fr.result).split(",")[1])};fr.onerror=rej;fr.readAsDataURL(blob)});
+   var r=await post("/api/pdfedit",{jobId:d.job.id,name:nm,b64:b64});nf={name:nm,url:r.url}
+  }else{if(!CAP.assets)throw new Error("ファイルの保存が許可されていません");var up=await CAP.assets.upload(blob);nf={name:nm,asset:up.id}}
+  var orig=f.orig||{name:f.name,url:f.url,asset:f.asset};
+  d.job.files[PE.idx]=Object.assign({},f,nf,{edited:true,orig:orig});
+  d.job.history=(d.job.history||[]).concat({at:new Date().toISOString(),text:(f.label||"書類")+"を編集しました("+anns.length+"か所)"});
+  if(!d.draft)await Store.saveOrder(d.job);
+  DOCC={};PE=null;var pe=$("#pe");if(pe)pe.remove();
+  var o2=d.job;if($("#docs")){var dh=docsSection(o2);var tmp=document.createElement("div");tmp.innerHTML=dh;$("#docs").parentNode.replaceChildren.apply($("#docs").parentNode,Array.prototype.slice.call(tmp.childNodes))}
+  renderDocs(o2);toast("編集した内容で差し替えました(元のPDFも残っています)");
+ }catch(x){toast("保存できませんでした: "+(x.message||x))}
+ finally{if(btn.isConnected){btn.disabled=false;btn.textContent=old}}
+}
+async function pdfRestore(idx){
+ var d=S.dlg;if(!d)return;var f=(d.job.files||[])[idx];if(!f||!f.orig)return;
+ if(!confirm("編集前のPDFに戻します。編集した内容は破棄されます。よろしいですか?"))return;
+ var cur=f.url&&f.url.indexOf("/api/file?id=")===0?decodeURIComponent(f.url.split("id=")[1]):"";
+ var back=Object.assign({},f,{name:f.orig.name,url:f.orig.url,asset:f.orig.asset});delete back.orig;delete back.edited;if(!back.url)delete back.url;if(!back.asset)delete back.asset;
+ d.job.files[idx]=back;d.job.history=(d.job.history||[]).concat({at:new Date().toISOString(),text:(f.label||"書類")+"を編集前に戻しました"});
+ if(!d.draft)await Store.saveOrder(d.job);
+ if(cur&&Store.mode==="server"){try{await post("/api/db",{op:"delfile",ids:[cur]})}catch(x){}}
+ DOCC={};openJob(d.job,{draft:d.draft,key:d.key});toast("編集前に戻しました");
 }
 var DOCC={};
 async function docPages(href){
@@ -2239,6 +2370,12 @@ document.addEventListener("click",async function(ev){
    break}
   case "dtab":{S.dlgTab=t.dataset.p;Array.prototype.forEach.call(document.querySelectorAll("#dtabs .tb"),function(b){b.classList.toggle("on",b.dataset.p===S.dlgTab)});Array.prototype.forEach.call(document.querySelectorAll(".dlg .tp"),function(d){d.classList.toggle("on",d.dataset.p===S.dlgTab)});var dl=document.querySelector(".mask");if(dl)dl.scrollTop=0;break}
   case "pwainst":{if(PWA.ev){var pe=PWA.ev;PWA.ev=null;pe.prompt();try{await pe.userChoice}catch(x){}render()}break}
+  case "pdfedit":pdfEdit(+t.dataset.i);break;
+  case "pdfrestore":pdfRestore(+t.dataset.i);break;
+  case "petool":{PE.tool=t.dataset.t;var sv=PE.ann;drawPdfEdit();break}
+  case "peundo":{PE.ann.pop();PE.pages.forEach(function(p,k){peRender(k)});break}
+  case "pesave":pdfEditSave(t);break;
+  case "peclose":{if(PE&&PE.ann.length&&!confirm("編集内容は保存されていません。閉じますか?"))break;PE=null;var pe0=$("#pe");if(pe0)pe0.remove();break}
   case "stch":{var sel=$("#f-status");if(sel){sel.value=t.dataset.v;Array.prototype.forEach.call(document.querySelectorAll("#stp .stc"),function(b,ix){b.className="stc"+(ix===+t.dataset.v?" on":ix<+t.dataset.v?" past":"")})}break}
   case "mailauto":await autoLinkMails();break;
   case "mladd":{var rs=$("#relsel"),rm=rs&&(S.mails||[]).filter(function(x){return x.key===rs.value})[0],ro=S.dlg&&S.dlg.job;if(!rm||!ro)break;
